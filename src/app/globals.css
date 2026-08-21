@@ -1,0 +1,204 @@
+@import "tailwindcss";
+
+:root {
+  --black-sidebar: #000000;
+  --black-sidebar-card: #0A0A0A;
+  --black-sidebar-hover: #171717;
+  --royal-blue: #3157D5;
+  --royal-blue-dark: #2646B8;
+  --royal-blue-light: #5C82FF;
+  --royal-blue-subtle: #EEF2FD;
+  --background: #FFFFFF;
+  --card: #FFFFFF;
+  --border: #E2E8F0;
+  --border-subtle: #EDF2F7;
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --success: #3157D5;
+  --success-subtle: #EEF2FD;
+  --warning: #1E40AF;
+  --warning-subtle: #EEF2FD;
+  --danger: #0F172A;
+  --danger-subtle: #F1F5F9;
+}
+
+.dark {
+  --background: #0B0F19;
+  --card: #1E293B;
+  --border: #334155;
+  --border-subtle: #1E293B;
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --royal-blue-subtle: #1E293B;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text-main);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dynamic Dark Mode Overrides */
+.dark body {
+  background-color: #0B0F19 !important;
+  color: #F8FAFC !important;
+}
+
+.dark main {
+  background-color: #0B0F19 !important;
+}
+
+.dark aside {
+  background-color: #0F172A !important;
+  border-color: #1E293B !important;
+  color: #F8FAFC !important;
+}
+
+.dark header {
+  background-color: #1E40AF !important;
+  border-color: #1E293B !important;
+}
+
+.dark .bg-white {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+}
+
+.dark .bg-\[\#F8FAFC\] {
+  background-color: #0F172A !important;
+}
+
+.dark .bg-\[\#EEF2FD\] {
+  background-color: #1E293B !important;
+  color: #60A5FA !important;
+}
+
+.dark .text-\[\#0F172A\] {
+  color: #F8FAFC !important;
+}
+
+.dark .text-\[\#64748B\] {
+  color: #94A3B8 !important;
+}
+
+.dark .border-\[\#E2E8F0\] {
+  border-color: #334155 !important;
+}
+
+.dark .border-\[\#EDF2F7\] {
+  border-color: #1E293B !important;
+}
+
+.dark input, .dark select, .dark textarea {
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
+  border-color: #334155 !important;
+}
+
+.dark input::placeholder, .dark textarea::placeholder {
+  color: #64748B !important;
+}
+
+.dark table thead {
+  background-color: #0F172A !important;
+  color: #94A3B8 !important;
+}
+
+.dark table tbody tr:hover {
+  background-color: #1E293B !important;
+}
+
+.dark .shadow-xs, .dark .shadow-sm, .dark .shadow-md, .dark .shadow-2xl {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+code, kbd, samp, pre {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Global page scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #0F172A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
+}
+
+/* Sidebar Custom Crisp White Scrollbar */
+.sidebar-white-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-white-scrollbar::-webkit-scrollbar-track {
+  background: #1A1A1A;
+  border-radius: 9999px;
+}
+
+.sidebar-white-scrollbar::-webkit-scrollbar-thumb {
+  background: #FFFFFF;
+  border-radius: 9999px;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+.sidebar-white-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #E2E8F0;
+}
+
+/* Audio Waveform Animation */
+@keyframes wave-bar {
+  0%, 100% {
+    height: 15%;
+  }
+  50% {
+    height: 95%;
+  }
+}
+
+.animate-wave-1 {
+  animation: wave-bar 1.2s ease-in-out infinite;
+}
+.animate-wave-2 {
+  animation: wave-bar 0.9s ease-in-out infinite 0.2s;
+}
+.animate-wave-3 {
+  animation: wave-bar 1.4s ease-in-out infinite 0.4s;
+}
+.animate-wave-4 {
+  animation: wave-bar 1.1s ease-in-out infinite 0.1s;
+}
+.animate-wave-5 {
+  animation: wave-bar 0.8s ease-in-out infinite 0.3s;
+}
+
+/* Pulse Glow Keyframes */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(49, 87, 213, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(49, 87, 213, 0);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
