@@ -166,8 +166,8 @@ export default function SuperAdminEnginesPage() {
               <div className="space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-[#0F172A] text-white flex items-center justify-center shadow-xs">
-                      {isLlm ? <Cpu className="w-5 h-5 text-[#5C82FF]" /> : isTts ? <Headphones className="w-5 h-5 text-emerald-400" /> : <Mic className="w-5 h-5 text-amber-400" />}
+                    <div className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center shadow-md shadow-[#3157D5]/20">
+                      {isLlm ? <Cpu className="w-5 h-5 text-white" /> : isTts ? <Headphones className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">

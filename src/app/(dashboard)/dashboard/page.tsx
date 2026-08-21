@@ -157,11 +157,13 @@ export default function DashboardPage() {
         {/* Left 2 Cols: QUICK ACCESS Grid & Large Royal Blue Hero Banner */}
         <div className="lg:col-span-2 space-y-5">
           {/* Quick Access Clean Symmetrical Grid */}
-          <div className="space-y-2">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#64748B] bg-[#E2E8F0]/60 px-2 py-0.5 rounded">
-              QUICK ACCESS
-            </span>
-            <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 gap-2.5">
+          <div className="space-y-3.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#64748B] bg-[#F1F5F9] border border-[#E2E8F0] px-2.5 py-1 rounded-md">
+                QUICK ACCESS
+              </span>
+            </div>
+            <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 gap-2.5 pt-1">
               {quickAccessItems.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -173,7 +175,7 @@ export default function DashboardPage() {
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-1 text-[#3157D5] bg-[#EEF2FD] group-hover:scale-110 transition-transform">
                       <Icon className="w-4 h-4" />
                     </div>
-                    <span className="text-[11px] font-bold text-[#0F172A] truncate w-full leading-tight">{item.label}</span>
+                    <span className="text-[11px] font-semibold text-[#0F172A] truncate w-full leading-tight">{item.label}</span>
                   </Link>
                 );
               })}

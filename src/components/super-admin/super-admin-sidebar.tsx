@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
 import { cn } from "@/lib/utils";
 import {
@@ -14,19 +14,21 @@ import {
   Mail,
   PhoneCall,
   Cpu,
-  FileText,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
   LogOut,
   X,
   Radio,
   ExternalLink,
-  ShieldCheck,
-  Zap,
   TrendingUp,
   Lock,
   Megaphone,
+  Zap,
   Activity,
+  DollarSign,
+  Layers,
+  PieChart,
 } from "lucide-react";
 
 interface NavItem {
@@ -42,8 +44,11 @@ interface NavSection {
   items: NavItem[];
 }
 
-export function SuperAdminSidebar() {
+function SuperAdminSidebarContent() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
+
   const {
     superAdminSidebarCollapsed,
     setSuperAdminSidebarCollapsed,
@@ -52,7 +57,7 @@ export function SuperAdminSidebar() {
     globalCalls,
   } = useSuperAdminStore();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const activeLiveCalls = globalCalls.filter((c) => c.status === "in_progress").length;
 
@@ -89,6 +94,46 @@ export function SuperAdminSidebar() {
       ],
     },
     {
+      title: "Analytics & Intelligence",
+      items: [
+        {
+          label: "Master Analytics Suite",
+          href: "/super-admin/analytics",
+          icon: TrendingUp,
+          badge: "88.7%",
+          badgeVariant: "live",
+        },
+        {
+          label: "P&L Financial Ledger",
+          href: "/super-admin/analytics?tab=financial",
+          icon: DollarSign,
+          badge: "Ledger",
+          badgeVariant: "neutral",
+        },
+        {
+          label: "Voice & SIP Telemetry",
+          href: "/super-admin/analytics?tab=telephony",
+          icon: Activity,
+          badge: "342 Lines",
+          badgeVariant: "info",
+        },
+        {
+          label: "AI Model & Token Burn",
+          href: "/super-admin/analytics?tab=models",
+          icon: Cpu,
+          badge: "842M",
+          badgeVariant: "info",
+        },
+        {
+          label: "Tenant Unit Economics",
+          href: "/super-admin/analytics?tab=tenants",
+          icon: Layers,
+          badge: "Cohort",
+          badgeVariant: "neutral",
+        },
+      ],
+    },
+    {
       title: "Monetization & Plans",
       items: [
         {
@@ -97,13 +142,6 @@ export function SuperAdminSidebar() {
           icon: CreditCard,
           badge: "Rates",
           badgeVariant: "info",
-        },
-        {
-          label: "Financial Ledger & Revenue",
-          href: "/super-admin/analytics",
-          icon: TrendingUp,
-          badge: "Ledger",
-          badgeVariant: "neutral",
         },
       ],
     },
@@ -171,43 +209,59 @@ export function SuperAdminSidebar() {
         />
       )}
 
-      {/* Super Admin Sidebar Container (Pure White #FFFFFF with Crisp Dark Text & Royal Blue Active/Hover) */}
+      {/* Super Admin Sidebar Container (Pure White #FFFFFF) */}
       <aside
         className={cn(
-          "fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-white text-[#0F172A] border-r border-[#E2E8F0] shadow-xs transition-all duration-300 ease-in-out select-none",
+          "fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-white text-[#0F172A] border-r border-[#E2E8F0] shadow-sm transition-all duration-300 ease-in-out select-none",
           superAdminSidebarCollapsed ? "w-20" : "w-64",
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
         {/* Brand Logo Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-[#E2E8F0] shrink-0 bg-white">
-          <Link href="/super-admin" className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#3157D5] to-[#1E40AF] flex items-center justify-center text-white shrink-0 shadow-md shadow-[#3157D5]/30 font-extrabold text-lg">
+        <div className={cn(
+          "flex items-center h-16 border-b border-[#E2E8F0] shrink-0 bg-white transition-all",
+          superAdminSidebarCollapsed ? "justify-center px-2" : "justify-between px-4"
+        )}>
+          {superAdminSidebarCollapsed ? (
+            <button
+              onClick={() => setSuperAdminSidebarCollapsed(false)}
+              className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center shadow-md shadow-[#3157D5]/30 group relative shrink-0 transition-transform active:scale-95"
+              title="Click to Expand Super Admin Console"
+            >
               <ShieldAlert className="w-5 h-5" />
-            </div>
-            {!superAdminSidebarCollapsed && (
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-base tracking-tight text-[#0F172A]">APEX</span>
-                  <span className="text-[9px] font-black px-1.5 py-0.5 bg-[#0F172A] text-white rounded-md tracking-wider">
-                    SUPER ADMIN
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#E2E8F0] text-[#3157D5] flex items-center justify-center shadow-xs">
+                <ChevronRight className="w-2.5 h-2.5" />
+              </div>
+            </button>
+          ) : (
+            <>
+              <Link href="/super-admin" className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center shrink-0 shadow-md shadow-[#3157D5]/30">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-base tracking-tight text-[#0F172A]">APEX</span>
+                    <span className="text-[9px] font-black px-1.5 py-0.5 bg-[#3157D5] text-white rounded-md tracking-wider">
+                      SUPER ADMIN
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-[#64748B] font-semibold tracking-wide">
+                    MASTER CONSOLE
                   </span>
                 </div>
-                <span className="text-[10px] text-[#64748B] font-semibold tracking-wide">
-                  MASTER PLATFORM CONSOLE
-                </span>
-              </div>
-            )}
-          </Link>
+              </Link>
 
-          {/* Desktop Collapse Button */}
-          <button
-            onClick={() => setSuperAdminSidebarCollapsed(!superAdminSidebarCollapsed)}
-            className="hidden md:flex items-center justify-center w-7 h-7 rounded-xl text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
-            title={superAdminSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {superAdminSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+              {/* Desktop Collapse Button */}
+              <button
+                onClick={() => setSuperAdminSidebarCollapsed(true)}
+                className="hidden md:flex items-center justify-center w-7 h-7 rounded-xl text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-colors shrink-0"
+                title="Collapse sidebar"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </>
+          )}
 
           {/* Mobile Close Button */}
           <button
@@ -219,7 +273,7 @@ export function SuperAdminSidebar() {
         </div>
 
         {/* Nav Items List */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 bg-white">
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 sidebar-white-scrollbar bg-white">
           {navSections.map((section, idx) => (
             <div key={idx} className="space-y-1">
               {section.title && !superAdminSidebarCollapsed && (
@@ -229,15 +283,22 @@ export function SuperAdminSidebar() {
               )}
               {section.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href;
+                
+                // Match logic for query params vs plain paths
+                const isUrlMatch = item.href.includes("?tab=")
+                  ? pathname === "/super-admin/analytics" && currentTab === item.href.split("tab=")[1]
+                  : item.href === "/super-admin/analytics"
+                  ? pathname === "/super-admin/analytics" && !currentTab
+                  : pathname === item.href;
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition-all group relative",
-                      isActive
+                      "flex items-center gap-3 py-2.5 rounded-2xl text-xs font-bold transition-all group relative",
+                      superAdminSidebarCollapsed ? "justify-center px-0" : "px-3.5",
+                      isUrlMatch
                         ? "bg-[#3157D5] text-white shadow-md shadow-[#3157D5]/30 font-extrabold"
                         : "text-[#0F172A] hover:bg-[#3157D5] hover:text-white hover:shadow-md hover:shadow-[#3157D5]/20"
                     )}
@@ -246,7 +307,7 @@ export function SuperAdminSidebar() {
                     <Icon
                       className={cn(
                         "w-4 h-4 shrink-0 transition-colors",
-                        isActive ? "text-white" : "text-[#64748B] group-hover:text-white"
+                        isUrlMatch ? "text-white" : "text-[#64748B] group-hover:text-white"
                       )}
                     />
 
@@ -258,7 +319,7 @@ export function SuperAdminSidebar() {
                       <span
                         className={cn(
                           "px-2 py-0.5 text-[10px] font-bold rounded-full transition-colors",
-                          isActive
+                          isUrlMatch
                             ? "bg-white/20 text-white"
                             : item.badgeVariant === "live"
                             ? "bg-[#EEF2FD] text-[#3157D5] group-hover:bg-white/20 group-hover:text-white border border-[#3157D5]/30 group-hover:border-white/30"
@@ -275,7 +336,7 @@ export function SuperAdminSidebar() {
           ))}
         </div>
 
-        {/* Footer: 1-Click Switch to Client Tenant Dashboard + Super Admin Profile */}
+        {/* Footer: Tenant Portal Switcher & Super Admin Profile */}
         <div className="p-3 border-t border-[#E2E8F0] space-y-3 shrink-0 bg-white">
           {!superAdminSidebarCollapsed ? (
             <>
@@ -294,7 +355,7 @@ export function SuperAdminSidebar() {
               {/* Super Admin User Profile */}
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#0F172A] flex items-center justify-center font-bold text-xs text-white shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-[#3157D5] text-white flex items-center justify-center font-extrabold text-xs shadow-md shadow-[#3157D5]/20">
                     {currentSuperAdmin.avatar}
                   </div>
                   <div className="flex flex-col">
@@ -324,7 +385,7 @@ export function SuperAdminSidebar() {
               >
                 <Zap className="w-4 h-4" />
               </Link>
-              <div className="w-8 h-8 rounded-xl bg-[#0F172A] flex items-center justify-center font-bold text-xs text-white">
+              <div className="w-9 h-9 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center font-extrabold text-xs shadow-md shadow-[#3157D5]/20">
                 {currentSuperAdmin.avatar}
               </div>
             </div>
@@ -332,5 +393,13 @@ export function SuperAdminSidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+export function SuperAdminSidebar() {
+  return (
+    <Suspense fallback={<div className="w-64 bg-white border-r border-[#E2E8F0]" />}>
+      <SuperAdminSidebarContent />
+    </Suspense>
   );
 }
