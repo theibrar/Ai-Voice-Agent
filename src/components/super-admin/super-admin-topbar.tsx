@@ -199,7 +199,7 @@ export function SuperAdminTopbar() {
             onClick={() => setUserMenuOpen((prev) => !prev)}
             className="flex items-center gap-2 p-1 rounded-xl hover:bg-white/15 transition-colors focus:outline-hidden"
           >
-            <div className="w-8 h-8 rounded-full bg-[#0F172A] text-white flex items-center justify-center font-bold text-xs shadow-xs border-2 border-white/30">
+            <div className="w-8 h-8 rounded-full bg-white text-[#3157D5] flex items-center justify-center font-black text-xs shadow-xs border-2 border-white/50">
               {currentSuperAdmin.avatar}
             </div>
           </button>
@@ -211,7 +211,7 @@ export function SuperAdminTopbar() {
                 <div className="px-4 py-2 border-b border-[#E2E8F0]">
                   <p className="text-xs font-bold text-[#0F172A]">{currentSuperAdmin.name}</p>
                   <p className="text-[11px] text-[#64748B]">{currentSuperAdmin.email}</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-[#0F172A] text-white rounded-md">
+                  <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-[#EEF2FD] text-[#3157D5] rounded-md border border-[#3157D5]/20">
                     {currentSuperAdmin.role}
                   </span>
                 </div>

@@ -55,6 +55,7 @@ interface SuperAdminContextType {
   adjustTenantCredits: (tenantId: string, deltaAmount: number, reason: string) => void;
   updateTenantStatus: (tenantId: string, status: "active" | "trial" | "suspended") => void;
   updateTenantQuotas: (tenantId: string, maxConcurrency: number, carrier: string, rate: number) => void;
+  updateTenantAccount: (tenantId: string, updates: { orgName?: string; primaryAdminName?: string; primaryAdminEmail?: string; passwordReset?: string }) => void;
   toggleTenantEngine: (tenantId: string, engineType: "llm" | "tts" | "stt", engineId: string) => void;
 
   plans: PlatformPlan[];
@@ -249,6 +250,23 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
     addToast({ title: "Quotas Updated", description: "Resource limits saved.", type: "success" });
   }, [addAuditLog, addToast]);
 
+  const updateTenantAccount = useCallback((tenantId: string, updates: { orgName?: string; primaryAdminName?: string; primaryAdminEmail?: string; passwordReset?: string }) => {
+    setTenants((prev) =>
+      prev.map((t) => {
+        if (t.id !== tenantId) return t;
+        return {
+          ...t,
+          ...(updates.orgName ? { orgName: updates.orgName } : {}),
+          ...(updates.primaryAdminName ? { primaryAdminName: updates.primaryAdminName } : {}),
+          ...(updates.primaryAdminEmail ? { primaryAdminEmail: updates.primaryAdminEmail } : {}),
+        };
+      })
+    );
+    const passMsg = updates.passwordReset ? " & password reset" : "";
+    addAuditLog(`Updated tenant profile details${passMsg} for '${tenantId}'`, `Tenant (${tenantId})`, "info");
+    addToast({ title: "Tenant Account Customized", description: `Updated admin profile & security credentials.${passMsg}`, type: "success" });
+  }, [addAuditLog, addToast]);
+
   const toggleTenantEngine = useCallback((tenantId: string, engineType: "llm" | "tts" | "stt", engineId: string) => {
     setTenants((prev) =>
       prev.map((t) => {
@@ -426,6 +444,7 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
         adjustTenantCredits,
         updateTenantStatus,
         updateTenantQuotas,
+        updateTenantAccount,
         toggleTenantEngine,
         plans,
         addPlan,
@@ -481,6 +500,7 @@ const fallbackSuperAdminState: SuperAdminContextType = {
   adjustTenantCredits: () => {},
   updateTenantStatus: () => {},
   updateTenantQuotas: () => {},
+  updateTenantAccount: () => {},
   toggleTenantEngine: () => {},
   plans: initialPlatformPlans,
   addPlan: () => {},

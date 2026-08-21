@@ -1,49 +1,44 @@
 "use client";
 
 import React, { useState, Suspense } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
 import { useAppStore } from "@/lib/store";
 import {
   Building2,
+  Users,
   Plus,
+  Coins,
+  Shield,
   Search,
   ExternalLink,
-  Coins,
-  PhoneCall,
-  Activity,
-  MoreVertical,
-  KeyRound,
-  ShieldAlert,
-  Cpu,
   CheckCircle2,
   XCircle,
-  X,
-  CreditCard,
-  Edit,
   Sliders,
   LogOut,
   Zap,
   Power,
+  Edit3,
+  Key,
+  Mail,
+  User,
+  X,
 } from "lucide-react";
 
 function SuperAdminTenantsContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const selectedParam = searchParams.get("selected");
   const queryParam = searchParams.get("q") || "";
+  const selectedParam = searchParams.get("selected") || "";
 
   const {
     tenants,
     plans,
     sipCarriers,
-    gateways,
     addTenant,
-    updateTenantPlan,
     adjustTenantCredits,
     updateTenantStatus,
     updateTenantQuotas,
+    updateTenantAccount,
     addToast: addSuperToast,
   } = useSuperAdminStore();
 
@@ -52,14 +47,24 @@ function SuperAdminTenantsContent() {
   const [searchQuery, setSearchQuery] = useState(queryParam);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  // Credit Modal State
   const [creditModalTenant, setCreditModalTenant] = useState<string | null>(null);
   const [creditAmount, setCreditAmount] = useState(500);
   const [creditReason, setCreditReason] = useState("Promotional platform grant");
 
+  // Quota Modal State
   const [quotaModalTenant, setQuotaModalTenant] = useState<string | null>(null);
   const [editConcurrency, setEditConcurrency] = useState(100);
   const [editCarrier, setEditCarrier] = useState("Telnyx Elastic Tier-1");
   const [editRate, setEditRate] = useState(0.08);
+
+  // Customize Account Modal State
+  const [customizeModalTenant, setCustomizeModalTenant] = useState<string | null>(null);
+  const [custOrgName, setCustOrgName] = useState("");
+  const [custAdminName, setCustAdminName] = useState("");
+  const [custAdminEmail, setCustAdminEmail] = useState("");
+  const [custPasswordReset, setCustPasswordReset] = useState("");
 
   // Create Form State
   const [orgName, setOrgName] = useState("");
@@ -106,21 +111,25 @@ function SuperAdminTenantsContent() {
     setActiveWorkspace({
       id: tenant.id,
       name: tenant.orgName,
-      plan: tenant.planName.includes("Enterprise") ? "Enterprise" : tenant.planName.includes("Scale") ? "Scale" : "Growth",
+      plan: tenant.planName.includes("Enterprise")
+        ? "Enterprise"
+        : tenant.planName.includes("Scale")
+        ? "Scale"
+        : "Growth",
       credits: tenant.creditsBalance,
-      activeCalls: tenant.activeCallsNow || 0,
+      activeCalls: tenant.activeCallsNow,
     });
 
     addAdminToast({
-      title: "Super Admin Impersonation Active",
-      description: `Viewing workspace as '${tenant.orgName}'.`,
-      type: "info",
+      title: "Switched Workspace",
+      description: `Now inspecting '${tenant.orgName}' as ${tenant.primaryAdminEmail}.`,
+      type: "success",
     });
 
-    router.push("/dashboard");
+    window.location.href = "/dashboard";
   };
 
-  const handleApplyCredits = () => {
+  const handleApplyCreditAdjustment = () => {
     if (!creditModalTenant) return;
     adjustTenantCredits(creditModalTenant, creditAmount, creditReason);
     setCreditModalTenant(null);
@@ -132,12 +141,27 @@ function SuperAdminTenantsContent() {
     setQuotaModalTenant(null);
   };
 
-  const filteredTenants = tenants.filter((t) => {
+  const handleSaveCustomizeAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customizeModalTenant) return;
+
+    updateTenantAccount(customizeModalTenant, {
+      orgName: custOrgName.trim(),
+      primaryAdminName: custAdminName.trim(),
+      primaryAdminEmail: custAdminEmail.trim(),
+      passwordReset: custPasswordReset.trim(),
+    });
+
+    setCustomizeModalTenant(null);
+    setCustPasswordReset("");
+  };
+
+  const filteredTenants = tenants.filter((tenant) => {
     const matchesSearch =
-      t.orgName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.primaryAdminEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.planName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || t.status === statusFilter;
+      tenant.orgName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tenant.primaryAdminEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tenant.primaryAdminName.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || tenant.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -157,13 +181,13 @@ function SuperAdminTenantsContent() {
               </span>
             </div>
             <p className="text-xs text-[#64748B] mt-0.5">
-              Provision client admin organizations, assign SIP carrier networks, manage credit balances, and simulate 1-click tenant access.
+              Provision client admin organizations, customize account emails/passwords, assign SIP carriers, and 1-click preview.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative w-48 sm:w-60">
+        <div className="flex items-center gap-3">
+          <div className="relative w-48 sm:w-64">
             <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -184,19 +208,24 @@ function SuperAdminTenantsContent() {
         </div>
       </div>
 
-      {/* 2. Filter Pills */}
+      {/* 2. Status Filter Pills */}
       <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-[#E2E8F0] shadow-xs w-fit">
-        {["all", "active", "trial", "suspended"].map((st) => (
+        {[
+          { id: "all", label: `All (${tenants.length})` },
+          { id: "active", label: `Active (${tenants.filter((t) => t.status === "active").length})` },
+          { id: "trial", label: `Trial (${tenants.filter((t) => t.status === "trial").length})` },
+          { id: "suspended", label: `Suspended (${tenants.filter((t) => t.status === "suspended").length})` },
+        ].map((tab) => (
           <button
-            key={st}
-            onClick={() => setStatusFilter(st)}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors capitalize ${
-              statusFilter === st
+            key={tab.id}
+            onClick={() => setStatusFilter(tab.id)}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+              statusFilter === tab.id
                 ? "bg-[#3157D5] text-white shadow-2xs"
                 : "text-[#64748B] hover:text-[#0F172A]"
             }`}
           >
-            {st} ({st === "all" ? tenants.length : tenants.filter((t) => t.status === st).length})
+            {tab.label}
           </button>
         ))}
       </div>
@@ -216,7 +245,7 @@ function SuperAdminTenantsContent() {
               <div className="space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-[#0F172A] text-white flex items-center justify-center font-black text-sm shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center font-black text-sm shadow-md shadow-[#3157D5]/20">
                       {tenant.orgName.substring(0, 1)}
                     </div>
                     <div>
@@ -281,6 +310,20 @@ function SuperAdminTenantsContent() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
+                      setCustomizeModalTenant(tenant.id);
+                      setCustOrgName(tenant.orgName);
+                      setCustAdminName(tenant.primaryAdminName);
+                      setCustAdminEmail(tenant.primaryAdminEmail);
+                      setCustPasswordReset("");
+                    }}
+                    className="p-2 bg-white hover:bg-[#EEF2FD] border border-[#E2E8F0] hover:border-[#3157D5] text-[#3157D5] rounded-xl transition-all"
+                    title="Customize Tenant Admin Email & Password"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => {
                       setCreditModalTenant(tenant.id);
                       setCreditAmount(500);
                     }}
@@ -319,9 +362,9 @@ function SuperAdminTenantsContent() {
 
                 <button
                   onClick={() => handleImpersonateTenant(tenant)}
-                  className="w-full py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md shadow-[#3157D5]/20"
+                  className="w-full py-2 bg-[#EEF2FD] hover:bg-[#3157D5] text-[#3157D5] hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border border-[#3157D5]/30 shadow-2xs group"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLink className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
                   <span>Log in as Tenant (1-Click Preview)</span>
                 </button>
               </div>
@@ -330,21 +373,112 @@ function SuperAdminTenantsContent() {
         })}
       </div>
 
-      {/* 4. Provision New Tenant Modal */}
+      {/* 4. Customize Tenant Account Modal */}
+      {customizeModalTenant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-[#0F172A]">Customize Tenant Admin Account</h3>
+              </div>
+              <button onClick={() => setCustomizeModalTenant(null)} className="p-1 text-[#64748B] hover:text-[#0F172A]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomizeAccount} className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1">Organization Name</label>
+                <div className="relative">
+                  <Building2 className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={custOrgName}
+                    onChange={(e) => setCustOrgName(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1">Primary Admin Name</label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={custAdminName}
+                    onChange={(e) => setCustAdminName(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1">Primary Admin Email Address</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={custAdminEmail}
+                    onChange={(e) => setCustAdminEmail(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1">Reset Password (Optional)</label>
+                <div className="relative">
+                  <Key className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    placeholder="Enter new password to reset..."
+                    value={custPasswordReset}
+                    onChange={(e) => setCustPasswordReset(e.target.value)}
+                    className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A] font-mono"
+                  />
+                </div>
+                <span className="text-[10px] text-[#64748B] mt-1 block">Leave blank to keep existing tenant credentials.</span>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
+                <button
+                  type="button"
+                  onClick={() => setCustomizeModalTenant(null)}
+                  className="px-4 py-2 text-xs font-bold text-[#64748B] hover:text-[#0F172A]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold shadow-md shadow-[#3157D5]/20 transition-colors"
+                >
+                  Save Tenant Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Provision New Tenant Modal */}
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
                   <Building2 className="w-4 h-4" />
                 </div>
                 <h3 className="text-base font-bold text-[#0F172A]">Provision New Tenant Organization</h3>
               </div>
-              <button
-                onClick={() => setCreateModalOpen(false)}
-                className="p-1.5 text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] rounded-lg"
-              >
+              <button onClick={() => setCreateModalOpen(false)} className="p-1 text-[#64748B] hover:text-[#0F172A]">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -355,7 +489,7 @@ function SuperAdminTenantsContent() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Zenith Capital Group"
+                  placeholder="e.g. Zenith Financial AI"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
@@ -367,18 +501,20 @@ function SuperAdminTenantsContent() {
                   <label className="font-bold text-[#0F172A] block mb-1">Primary Admin Name</label>
                   <input
                     type="text"
-                    placeholder="e.g. Rachel Miller"
+                    required
+                    placeholder="e.g. Sarah Jenkins"
                     value={adminName}
                     onChange={(e) => setAdminName(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
                   />
                 </div>
+
                 <div>
-                  <label className="font-bold text-[#0F172A] block mb-1">Primary Admin Email</label>
+                  <label className="font-bold text-[#0F172A] block mb-1">Admin Email Address</label>
                   <input
                     type="email"
                     required
-                    placeholder="admin@zenith.com"
+                    placeholder="sarah@zenithai.com"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
@@ -388,30 +524,29 @@ function SuperAdminTenantsContent() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-[#0F172A] block mb-1">Subscription Plan</label>
+                  <label className="font-bold text-[#0F172A] block mb-1">Initial Subscription Tier</label>
                   <select
                     value={selectedPlanId}
                     onChange={(e) => setSelectedPlanId(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
                   >
                     {plans.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (${p.monthlyPrice}/mo)
-                      </option>
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 </div>
+
                 <div>
-                  <label className="font-bold text-[#0F172A] block mb-1">Billing Interval</label>
+                  <label className="font-bold text-[#0F172A] block mb-1">Billing Cycle</label>
                   <select
                     value={billingCycle}
                     onChange={(e: any) => setBillingCycle(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
                   >
-                    <option value="monthly">Monthly</option>
+                    <option value="monthly">Monthly Subscription</option>
                     <option value="6_months">6 Months (15% off)</option>
                     <option value="yearly">Yearly (25% off)</option>
-                    <option value="pay_as_you_go">Pay-As-You-Go</option>
+                    <option value="pay_as_you_go">Pay-As-You-Go Metered</option>
                   </select>
                 </div>
               </div>
@@ -426,8 +561,9 @@ function SuperAdminTenantsContent() {
                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A] font-mono"
                   />
                 </div>
+
                 <div>
-                  <label className="font-bold text-[#0F172A] block mb-1">Max Concurrent SIP Lines</label>
+                  <label className="font-bold text-[#0F172A] block mb-1">Max SIP Concurrency</label>
                   <input
                     type="number"
                     value={maxConcurrency}
@@ -437,22 +573,7 @@ function SuperAdminTenantsContent() {
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-[#0F172A] block mb-1">Assigned SIP Carrier Trunk</label>
-                <select
-                  value={assignedCarrier}
-                  onChange={(e) => setAssignedCarrier(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
-                >
-                  {sipCarriers.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name} ({c.transport})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(false)}
@@ -464,7 +585,7 @@ function SuperAdminTenantsContent() {
                   type="submit"
                   className="px-5 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold shadow-md shadow-[#3157D5]/20 transition-colors"
                 >
-                  Provision & Grant Access
+                  Provision Account
                 </button>
               </div>
             </form>
@@ -472,7 +593,7 @@ function SuperAdminTenantsContent() {
         </div>
       )}
 
-      {/* 5. Adjust Credits Modal */}
+      {/* 6. Adjust Credits Modal */}
       {creditModalTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
@@ -481,31 +602,33 @@ function SuperAdminTenantsContent() {
                 <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
                   <Coins className="w-4 h-4" />
                 </div>
-                <h3 className="text-base font-bold text-[#0F172A]">Adjust Tenant Credits</h3>
+                <h3 className="text-base font-bold text-[#0F172A]">Adjust Tenant Voice Credits</h3>
               </div>
               <button onClick={() => setCreditModalTenant(null)} className="p-1 text-[#64748B] hover:text-[#0F172A]">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3.5 text-xs">
               <div>
-                <label className="font-bold text-[#0F172A] block mb-1">Credit Adjustment ($)</label>
+                <label className="font-bold text-[#0F172A] block mb-1">Adjustment Amount ($)</label>
                 <input
                   type="number"
                   value={creditAmount}
                   onChange={(e) => setCreditAmount(Number(e.target.value))}
-                  placeholder="e.g. 500 or -100"
-                  className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A] font-mono text-sm"
+                  placeholder="+500 or -100"
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A] font-mono text-sm font-bold"
                 />
+                <span className="text-[10px] text-[#64748B] mt-1 block">Use positive value to add credits, negative to deduct.</span>
               </div>
 
               <div>
-                <label className="font-bold text-[#0F172A] block mb-1">Adjustment Reason</label>
+                <label className="font-bold text-[#0F172A] block mb-1">Audit Ledger Reason</label>
                 <input
                   type="text"
                   value={creditReason}
                   onChange={(e) => setCreditReason(e.target.value)}
+                  placeholder="e.g. Promotional grant, custom wire payment, refund"
                   className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
                 />
               </div>
@@ -519,17 +642,17 @@ function SuperAdminTenantsContent() {
                 Cancel
               </button>
               <button
-                onClick={handleApplyCredits}
-                className="px-5 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-colors"
+                onClick={handleApplyCreditAdjustment}
+                className="px-5 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold shadow-md shadow-[#3157D5]/20 transition-colors"
               >
-                Apply Credits
+                Apply Credit Adjustment
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 6. Edit Quotas Modal */}
+      {/* 7. Resource Quotas Modal */}
       {quotaModalTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
@@ -538,14 +661,14 @@ function SuperAdminTenantsContent() {
                 <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
                   <Sliders className="w-4 h-4" />
                 </div>
-                <h3 className="text-base font-bold text-[#0F172A]">Edit Resource Quotas</h3>
+                <h3 className="text-base font-bold text-[#0F172A]">Edit Tenant Resource Quotas</h3>
               </div>
               <button onClick={() => setQuotaModalTenant(null)} className="p-1 text-[#64748B] hover:text-[#0F172A]">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3.5 text-xs">
               <div>
                 <label className="font-bold text-[#0F172A] block mb-1">Max Concurrent SIP Lines</label>
                 <input

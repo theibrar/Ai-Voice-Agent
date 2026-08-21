@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/lib/store";
 
-const plusJakarta = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
   display: "swap",
 });
 
@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`h-full antialiased ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`h-full antialiased ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-full flex flex-col bg-[#FFFFFF] text-[#0F172A] font-sans">
         <AppProvider>{children}</AppProvider>
       </body>

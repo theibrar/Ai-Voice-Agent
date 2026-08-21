@@ -149,9 +149,7 @@ export default function SuperAdminGatewaysPage() {
               <div className="space-y-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-white shadow-xs ${
-                      isEmail ? "bg-[#3157D5]" : "bg-[#0F172A]"
-                    }`}>
+                    <div className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center shadow-md shadow-[#3157D5]/20">
                       {isEmail ? <Mail className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
                     </div>
                     <div>

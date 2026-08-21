@@ -91,6 +91,13 @@ export default function SuperAdminMissionControl() {
               <CreditCard className="w-3.5 h-3.5" />
               <span>Manage Pricing & Rates</span>
             </Link>
+            <Link
+              href="/super-admin/analytics"
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-white/30"
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Platform Analytics Suite</span>
+            </Link>
           </div>
         </div>
 

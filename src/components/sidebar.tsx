@@ -142,30 +142,46 @@ export function Sidebar() {
         )}
       >
         {/* Brand Logo Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-[#E2E8F0] shrink-0 bg-white">
-          <Link href="/dashboard" className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-2xl bg-[#3157D5] flex items-center justify-center text-white shrink-0 shadow-md shadow-[#3157D5]/30 font-extrabold text-lg">
+        <div className={cn(
+          "flex items-center h-16 border-b border-[#E2E8F0] shrink-0 bg-white transition-all",
+          sidebarCollapsed ? "justify-center px-2" : "justify-between px-4"
+        )}>
+          {sidebarCollapsed ? (
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center shadow-md shadow-[#3157D5]/30 group relative shrink-0 transition-transform active:scale-95 font-black text-lg"
+              title="Click to Expand Sidebar"
+            >
               Q
-            </div>
-            {!sidebarCollapsed && (
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-base tracking-tight text-[#0F172A]">APEX</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-[#3157D5] text-white rounded-md tracking-wider">VOICE</span>
-                </div>
-                <span className="text-[10px] text-[#64748B] font-semibold tracking-wide">ENTERPRISE PLATFORM</span>
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white border border-[#E2E8F0] text-[#3157D5] flex items-center justify-center shadow-xs font-normal">
+                <ChevronRight className="w-2.5 h-2.5" />
               </div>
-            )}
-          </Link>
+            </button>
+          ) : (
+            <>
+              <Link href="/dashboard" className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#3157D5] flex items-center justify-center text-white shrink-0 shadow-md shadow-[#3157D5]/30 font-black text-lg">
+                  Q
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-base tracking-tight text-[#0F172A]">APEX</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-[#3157D5] text-white rounded-md tracking-wider">VOICE</span>
+                  </div>
+                  <span className="text-[10px] text-[#64748B] font-semibold tracking-wide">ENTERPRISE PLATFORM</span>
+                </div>
+              </Link>
 
-          {/* Desktop Collapse Button */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden md:flex items-center justify-center w-7 h-7 rounded-xl text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-colors"
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+              {/* Desktop Collapse Button */}
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="hidden md:flex items-center justify-center w-7 h-7 rounded-xl text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-colors shrink-0"
+                title="Collapse sidebar"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </>
+          )}
 
           {/* Mobile Close Button */}
           <button

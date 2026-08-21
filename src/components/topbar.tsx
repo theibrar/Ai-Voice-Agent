@@ -50,13 +50,10 @@ export function Topbar() {
         {/* Global Search Button */}
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="flex items-center gap-2 px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs text-white placeholder-white/70 transition-all group w-64 md:w-80"
+          className="flex items-center gap-2.5 px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs text-white transition-all group w-64 md:w-80 shadow-2xs"
         >
-          <Search className="w-4 h-4 text-white/90" />
-          <span className="font-medium text-white/90">Search agents, calls, contacts...</span>
-          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.2 text-[10px] font-mono font-bold bg-white/20 rounded text-white border border-white/30 ml-auto">
-            ⌘K
-          </kbd>
+          <Search className="w-4 h-4 text-white/80 shrink-0 group-hover:text-white" />
+          <span className="font-normal text-white/90 truncate">Search agents, calls, contacts...</span>
         </button>
       </div>
 
