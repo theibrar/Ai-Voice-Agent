@@ -791,6 +791,7 @@ function SuperAdminAnalyticsContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0]">
+<<<<<<< Updated upstream:src/app/super-admin/(app)/analytics/page.tsx
                   {modelTokenData.map((m) => (
                     <tr key={m.model} className="hover:bg-[#EEF2FD]/40 transition-colors">
                       <td className="p-3 font-semibold text-[#0F172A] flex items-center gap-2">
@@ -811,6 +812,55 @@ function SuperAdminAnalyticsContent() {
                       </td>
                     </tr>
                   ))}
+=======
+                  {engines.length > 0 ? (
+                    engines.map((m) => (
+                      <tr key={m.id} className="hover:bg-[#EEF2FD]/40 transition-colors">
+                        <td className="p-3 font-semibold text-[#0F172A] flex items-center gap-2">
+                          <Cpu className="w-4 h-4 text-[#3157D5]" />
+                          <span>{m.name}</span>
+                        </td>
+                        <td className="p-3 font-mono font-semibold text-[#0F172A]">{((m as any).totalCallsExecuted || 1240).toLocaleString()}</td>
+                        <td className="p-3 font-mono text-[#3157D5] font-semibold">{(m as any).totalTokensUsed || "1.8M"} tokens</td>
+                        <td className="p-3 font-mono text-[#0F172A] font-semibold">{m.latencyAvgMs} ms</td>
+                        <td className="p-3 font-mono text-[#0F172A] font-semibold">{m.latencyAvgMs} ms</td>
+                        <td className="p-3 font-mono font-semibold text-[#0F172A]">{m.costPerUnit}</td>
+                        <td className="p-3">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                            {m.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    totalBilledMinutes > 0 ? (
+                      modelTokenData.map((m) => (
+                        <tr key={m.model} className="hover:bg-[#EEF2FD]/40 transition-colors">
+                          <td className="p-3 font-semibold text-[#0F172A] flex items-center gap-2">
+                            <Cpu className="w-4 h-4 text-[#3157D5]" />
+                            <span>{m.model}</span>
+                          </td>
+                          <td className="p-3 font-mono font-semibold text-[#0F172A]">{m.callsCount.toLocaleString()}</td>
+                          <td className="p-3 font-mono text-[#3157D5] font-semibold">{m.tokensM}M tokens</td>
+                          <td className="p-3 font-mono text-[#0F172A] font-semibold">{m.ttft}</td>
+                          <td className="p-3 font-mono text-[#0F172A] font-semibold">{m.latencyMs} ms</td>
+                          <td className="p-3 font-mono font-semibold text-[#0F172A]">${m.costUSD.toFixed(2)}</td>
+                          <td className="p-3">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF2FD] text-[#3157D5]">
+                              High Quality
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-[#64748B] text-xs">
+                          No AI models or token usage recorded in database yet.
+                        </td>
+                      </tr>
+                    )
+                  )}
+>>>>>>> Stashed changes:frontend/src/app/super-admin/(app)/analytics/page.tsx
                 </tbody>
               </table>
             </div>

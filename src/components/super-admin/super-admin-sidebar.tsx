@@ -29,6 +29,7 @@ import {
   DollarSign,
   Layers,
   PieChart,
+  Server,
 } from "lucide-react";
 
 interface NavItem {
@@ -148,6 +149,13 @@ function SuperAdminSidebarContent() {
     {
       title: "Infrastructure & Gateways",
       items: [
+        {
+          label: "External Server & APIs",
+          href: "/super-admin/external-server",
+          icon: Server,
+          badge: "9 APIs",
+          badgeVariant: "live",
+        },
         {
           label: "Email & SMS Gateways",
           href: "/super-admin/gateways",

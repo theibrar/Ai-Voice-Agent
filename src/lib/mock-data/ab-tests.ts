@@ -35,8 +35,13 @@ export const initialABExperiments: ABTestExperiment[] = [
       avgDurationSec: 210,
       sentimentScore: 94,
     },
+<<<<<<< Updated upstream:src/lib/mock-data/ab-tests.ts
     confidenceScore: 99.2,
     winner: "variantB",
+=======
+    confidenceScore: 0.0,
+    winner: undefined,
+>>>>>>> Stashed changes:frontend/src/lib/mock-data/ab-tests.ts
     startDate: "2026-08-10T00:00:00Z",
   },
   {
@@ -73,8 +78,13 @@ export const initialABExperiments: ABTestExperiment[] = [
       avgDurationSec: 155,
       sentimentScore: 81,
     },
+<<<<<<< Updated upstream:src/lib/mock-data/ab-tests.ts
     confidenceScore: 96.5,
     winner: "variantA",
+=======
+    confidenceScore: 0.0,
+    winner: undefined,
+>>>>>>> Stashed changes:frontend/src/lib/mock-data/ab-tests.ts
     startDate: "2026-08-14T00:00:00Z",
   },
 ];

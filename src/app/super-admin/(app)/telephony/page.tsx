@@ -145,8 +145,17 @@ export default function SuperAdminTelephonyPage() {
 
         <div className="p-5 bg-white rounded-3xl border border-[#E2E8F0] shadow-xs space-y-1">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#64748B]">Avg Wholesale Cost</span>
+<<<<<<< Updated upstream:src/app/super-admin/(app)/telephony/page.tsx
           <div className="text-2xl font-black text-[#3157D5] font-mono">$0.0037 / min</div>
           <span className="text-xs text-emerald-600 font-bold">Gross Margin: ~95.7%</span>
+=======
+          <div className="text-2xl font-black text-[#3157D5] font-mono">
+            ${sipCarriers.length > 0 ? (sipCarriers.reduce((a, c) => a + (c.ratePerMinuteWholesale || 0), 0) / sipCarriers.length).toFixed(4) : "0.0000"} / min
+          </div>
+          <span className="text-xs text-emerald-600 font-bold">
+            {sipCarriers.length > 0 ? "Gross Margin: ~95.7%" : "Gross Margin: 0.0%"}
+          </span>
+>>>>>>> Stashed changes:frontend/src/app/super-admin/(app)/telephony/page.tsx
         </div>
       </div>
 
