@@ -1,23 +1,18 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
+import { useAppStore } from "@/lib/store";
 import {
-  ShieldAlert,
   Building2,
   Users,
   CreditCard,
   PhoneCall,
-  Activity,
-  Cpu,
-  Mail,
   ArrowRight,
   TrendingUp,
-  ExternalLink,
-  ShieldCheck,
-  CheckCircle2,
-  Zap,
+  Crown,
+  Coins,
 } from "lucide-react";
 import {
   AreaChart,
@@ -27,31 +22,27 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
 } from "recharts";
 
 export default function SuperAdminMissionControl() {
   const {
     tenants,
+    refreshTenants,
     superAdmins,
-    plans,
     sipCarriers,
-    gateways,
-    engines,
     auditLogs,
-    addToast,
   } = useSuperAdminStore();
 
-  const [dbAnalytics, setDbAnalytics] = React.useState<any>({ call_analytics: [], lead_analytics: [] });
-  const [platformRevenueTrend, setPlatformRevenueTrend] = React.useState<any[]>([]);
+  const [dbAnalytics, setDbAnalytics] = useState<any>({ call_analytics: [], lead_analytics: [] });
+  const [platformRevenueTrend, setPlatformRevenueTrend] = useState<any[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window === "undefined") return;
+    refreshTenants();
     async function loadAnalytics() {
       try {
         const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + '/analytics/daily';
-        const res = await fetch(apiUrl);
+        const res = await fetch(apiUrl, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setDbAnalytics(data);
@@ -59,7 +50,7 @@ export default function SuperAdminMissionControl() {
             const trend = data.call_analytics.map((item: any) => ({
               month: item.date,
               revenue: item.completed_calls * 10,
-              minutes: item.avg_duration_seconds * item.total_calls
+              minutes: item.avg_duration_seconds * item.total_calls,
             }));
             setPlatformRevenueTrend(trend);
           }
@@ -71,58 +62,65 @@ export default function SuperAdminMissionControl() {
     loadAnalytics();
   }, []);
 
-  const totalMonthlySpend = tenants.reduce((acc, t) => acc + t.monthlySpend, 0);
-  const totalActiveCalls = tenants.reduce((acc, t) => acc + t.activeCallsNow, 0);
-  const totalMinutesThisMonth = tenants.reduce((acc, t) => acc + t.totalMinutesUsedThisMonth, 0);
+  const totalMonthlySpend = tenants.reduce((acc, t) => acc + (t.monthlySpend || 0), 0);
+  const totalActiveCalls = tenants.reduce((acc, t) => acc + (t.activeCallsNow || 0), 0);
+  const totalMinutesThisMonth = tenants.reduce((acc, t) => acc + (t.totalMinutesUsedThisMonth || 0), 0);
+  const totalCreditsAllocated = tenants.reduce((acc, t) => acc + (t.creditsBalance || 0), 0);
 
   return (
-    <div className="space-y-6">
-      {/* 1. Master Super Admin Banner */}
+    <div className="space-y-8">
+      {/* 1. Master Super Admin Fleet Banner */}
       <div className="p-6 md:p-8 bg-gradient-to-r from-[#0F172A] via-[#1E293B] to-[#3157D5] text-white rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-        <div className="space-y-3 max-w-xl z-10">
+        <div className="space-y-3 max-w-2xl z-10">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 text-white px-2.5 py-0.5 rounded-full border border-white/30">
-              MASTER MISSION CONTROL
+            <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 text-white px-3 py-1 rounded-full border border-white/30 flex items-center gap-1.5 shadow-2xs">
+              <Crown className="w-3.5 h-3.5 text-amber-300" />
+              1 MASTER SUPER ADMIN CONTROL CONSOLE
             </span>
             <span className="text-xs font-semibold text-emerald-400">
-              ● All Global POPs Operational
+              ● Central Multi-Tenant Authority
             </span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-            Apex Voice Platform Fleet Overview
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight">
+            Super Admin Mission Control & Fleet Orchestration
           </h1>
           <p className="text-xs md:text-sm text-white/80 leading-relaxed">
-            Multi-tenant orchestration layer: {tenants.length} active tenant organizations, {sipCarriers.length} connected SIP carrier backbones, and {engines.length} unified AI models.
+            Single Master Super Admin authority over <strong>{tenants.length} Tenant Organizations</strong>, each with its dedicated Lead Admin, SIP channels, credit allocation, and full workspace autonomy.
           </p>
 
           <div className="flex items-center gap-3 pt-2 flex-wrap">
             <Link
               href="/super-admin/admins"
-              className="px-4 py-2 bg-white text-[#0F172A] hover:bg-white/95 rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+              className="px-4 py-2.5 bg-white text-[#0F172A] hover:bg-white/95 rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
             >
-              <Building2 className="w-3.5 h-3.5 text-[#3157D5]" />
-              <span>Provision New Tenant</span>
+              <Building2 className="w-4 h-4 text-[#3157D5]" />
+              <span>Manage Tenant Orgs ({tenants.length})</span>
+            </Link>
+            <Link
+              href="/super-admin/team"
+              className="px-4 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+            >
+              <Users className="w-4 h-4" />
+              <span>Admin Team ({superAdmins.length})</span>
             </Link>
             <Link
               href="/super-admin/plans"
-              className="px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              className="px-4 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-white/30"
             >
-              <CreditCard className="w-3.5 h-3.5" />
-              <span>Manage Pricing & Rates</span>
-            </Link>
-            <Link
-              href="/super-admin/analytics"
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-white/30"
-            >
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Platform Analytics Suite</span>
+              <CreditCard className="w-4 h-4 text-emerald-300" />
+              <span>Platform Plans & Rates</span>
             </Link>
           </div>
         </div>
 
-        <div className="hidden md:flex flex-col items-center justify-center w-32 h-32 rounded-2xl bg-white/10 border border-white/20 shrink-0 z-10">
-          <ShieldAlert className="w-12 h-12 text-white mb-1" />
-          <span className="text-[10px] font-bold tracking-wider text-white/90">SUPER ADMIN</span>
+        <div className="hidden lg:flex flex-col items-center justify-center p-5 rounded-2xl bg-white/10 border border-white/20 shrink-0 z-10 text-center space-y-1 backdrop-blur-xs">
+          <div className="w-14 h-14 rounded-2xl bg-white text-[#0F172A] flex items-center justify-center font-black text-lg shadow-lg">
+            AV
+          </div>
+          <span className="text-xs font-bold text-white">Alexander Vance</span>
+          <span className="text-[10px] text-amber-300 font-bold bg-white/10 px-2 py-0.5 rounded-md border border-white/20">
+            👑 Root Super Admin
+          </span>
         </div>
       </div>
 
@@ -131,10 +129,10 @@ export default function SuperAdminMissionControl() {
         <div className="p-5 bg-white rounded-3xl border border-[#E2E8F0] shadow-xs space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#64748B]">
-              Platform Monthly Run-Rate
+              Total Monthly Spend (MRR)
             </span>
-            <div className="w-7 h-7 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center text-xs">
-              <CreditCard className="w-3.5 h-3.5" />
+            <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
+              <CreditCard className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">
@@ -142,7 +140,7 @@ export default function SuperAdminMissionControl() {
           </div>
           <span className="text-xs text-[#3157D5] font-bold flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5" />
-            {totalMonthlySpend > 0 ? "+14.8% vs last month" : "0.0% vs last month"}
+            Active platform revenue ledger
           </span>
         </div>
 
@@ -151,65 +149,68 @@ export default function SuperAdminMissionControl() {
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#64748B]">
               Tenant Organizations
             </span>
-            <div className="w-7 h-7 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center text-xs">
-              <Building2 className="w-3.5 h-3.5" />
+            <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
+              <Building2 className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">
-            {tenants.length} Active Orgs
+            {tenants.length} Tenant Workspaces
+          </div>
+          <span className="text-xs text-[#16A36A] font-bold">
+            1 Designated Lead Admin per Org
+          </span>
+        </div>
+
+        <div className="p-5 bg-white rounded-3xl border border-[#E2E8F0] shadow-xs space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#64748B]">
+              Total Credits Pool
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
+              <Coins className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-[#0F172A] tracking-tight">
+            ${totalCreditsAllocated.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <span className="text-xs text-[#64748B] font-semibold">
-            {tenants.filter((t) => t.status === "active").length} in Production • {tenants.filter((t) => t.status === "trial").length} in Trial
+            Allocated across client balances
           </span>
         </div>
 
         <div className="p-5 bg-white rounded-3xl border border-[#E2E8F0] shadow-xs space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#64748B]">
-              Live Concurrent SIP Channels
+              Live SIP Lines Allocated
             </span>
-            <div className="w-7 h-7 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center text-xs">
-              <PhoneCall className="w-3.5 h-3.5" />
+            <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
+              <PhoneCall className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-black text-[#0F172A] tracking-tight">
-            {totalActiveCalls} / 1,000 Lines
+            {tenants.reduce((acc, t) => acc + t.maxConcurrency, 0)} Channels
           </div>
           <span className="text-xs text-[#3157D5] font-bold">
-            Capacity: {totalActiveCalls > 0 ? "34.2% Peak Load" : "0.0% Idle"}
-          </span>
-        </div>
-
-        <div className="p-5 bg-white rounded-3xl border border-[#E2E8F0] shadow-xs space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#64748B]">
-              Voice Minutes Billed
-            </span>
-            <div className="w-7 h-7 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center text-xs">
-              <Activity className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-[#0F172A] tracking-tight">
-            {totalMinutesThisMonth.toLocaleString()} Mins
-          </div>
-          <span className="text-xs text-[#3157D5] font-bold">
-            Average: {totalMinutesThisMonth > 0 ? "$0.086 / min billed" : "$0.00 / min billed"}
+            Elastic Carrier Trunking Active
           </span>
         </div>
       </div>
 
-      {/* 3. Charts Row: Revenue Velocity & Minutes Volume */}
+      {/* 3. Platform Revenue Velocity & Infrastructure Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Velocity Area Chart (2 cols) */}
+        {/* Revenue Velocity Chart (2 cols) */}
         <div className="lg:col-span-2 p-6 bg-white rounded-3xl border border-[#E2E8F0] shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#EDF2F7]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#EDF2F7]">
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">Platform Revenue Velocity (MRR)</h2>
-              <p className="text-xs text-[#64748B]">Monthly aggregate billed across all subscription tiers and pay-as-you-go minutes</p>
+              <h2 className="text-base font-bold text-[#0F172A]">Platform Revenue Velocity</h2>
+              <p className="text-xs text-[#64748B]">Aggregated multi-tenant call billing & consumption trends</p>
             </div>
-            <span className="text-xs font-mono font-bold text-[#3157D5] bg-[#EEF2FD] px-3 py-1 rounded-full">
-              6-Month Trend
-            </span>
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3157D5]" />
+                Actual Revenue ($)
+              </span>
+            </div>
           </div>
 
           <div className="h-64 w-full">

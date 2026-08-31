@@ -5,10 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+export function formatDuration(seconds: number | string | undefined | null): string {
+  const sec = typeof seconds === "string" ? parseFloat(seconds) : (seconds || 0);
+  if (isNaN(sec) || sec <= 0) return "0:01";
+  const mins = Math.floor(sec / 60);
+  const remainingSecs = Math.floor(sec % 60);
+  return `${mins}:${remainingSecs.toString().padStart(2, "0")}`;
 }
 
 export function formatRelativeTime(dateString: string): string {

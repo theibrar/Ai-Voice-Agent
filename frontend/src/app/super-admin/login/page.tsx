@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
+import { useAuth } from "@/lib/auth-context";
 import {
   ShieldAlert,
   Lock,
@@ -18,32 +19,90 @@ import {
 export default function SuperAdminLoginPage() {
   const router = useRouter();
   const { superAdmins, setCurrentSuperAdmin, addToast } = useSuperAdminStore();
+  const { refreshAuth } = useAuth();
 
-  const [email, setEmail] = useState("alexander@apexsuperadmin.io");
-  const [password, setPassword] = useState("••••••••••••");
-  const [otpCode, setOtpCode] = useState("892401");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  const handleSuperAdminLogin = (e: React.FormEvent) => {
+  const handleSuperAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setAuthError(null);
 
-    setTimeout(() => {
-      const match = superAdmins.find((a) => a.email.toLowerCase() === email.toLowerCase()) || superAdmins[0];
-      setCurrentSuperAdmin(match);
+    try {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1") + "/auth/login";
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password,
+          requiredRole: "super_admin",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setIsLoading(false);
+        const errMsg = data.error || "Super Admin authentication failed. Invalid credentials.";
+        setAuthError(errMsg);
+        addToast({
+          title: "Authentication Failed",
+          description: errMsg,
+          type: "warning",
+        });
+        return;
+      }
+
+      await refreshAuth();
+      setIsLoading(false);
+      const matchedAdmin = superAdmins.find((a) => a.email.toLowerCase() === email.toLowerCase()) || {
+        id: data.user?.id || "usr-superadmin-1",
+        name: data.user?.name || "Alexander Vance",
+        email: data.user?.email || email,
+        role: "Master Super Admin" as const,
+        avatar: "/avatars/alexander.png",
+        status: "active" as const,
+        lastActive: "Just now",
+        twoFactorEnabled: true,
+        permissions: ["full_access" as const, "billing_override" as const, "carrier_switch" as const],
+      };
+
+      setCurrentSuperAdmin(matchedAdmin);
       addToast({
         title: "Super Admin Authenticated",
-        description: `Welcome Master Console, ${match.name}. Full platform authorization active.`,
+        description: `Welcome Master Console, ${matchedAdmin.name}. Full platform authorization active.`,
         type: "success",
       });
       router.push("/super-admin");
-    }, 800);
+    } catch (err: any) {
+      setIsLoading(false);
+      const errMsg = "Unable to connect to authentication server. Please check backend.";
+      setAuthError(errMsg);
+      addToast({
+        title: "Connection Error",
+        description: errMsg,
+        type: "warning",
+      });
+    }
   };
 
   const fillTestCredentials = (adminEmail: string) => {
     setEmail(adminEmail);
-    setPassword("MasterSuperAdminKey2026!");
+    if (adminEmail === "alexander@apexsuperadmin.io") {
+      setPassword("MasterSuperAdminKey2026!");
+    } else if (adminEmail === "superadmin@apexvoice.ai") {
+      setPassword("SuperAdmin@123");
+    } else {
+      setPassword("MasterSuperAdminKey2026!");
+    }
     setOtpCode(Math.floor(100000 + Math.random() * 900000).toString());
+    setAuthError(null);
   };
 
   return (
@@ -83,6 +142,13 @@ export default function SuperAdminLoginPage() {
               Restricted platform authorization for master operators, billing leads & telephony engineers.
             </p>
           </div>
+
+          {authError && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-700 font-bold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+              <span>{authError}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSuperAdminLogin} className="space-y-4 text-xs">
             <div>
@@ -142,26 +208,6 @@ export default function SuperAdminLoginPage() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-
-          {/* Quick Demo Credentials Switcher */}
-          <div className="pt-4 border-t border-[#EDF2F7] space-y-2">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#64748B] block text-center">
-              Quick Test Roles:
-            </span>
-            <div className="grid grid-cols-2 gap-1.5">
-              {superAdmins.slice(0, 4).map((admin) => (
-                <button
-                  key={admin.id}
-                  type="button"
-                  onClick={() => fillTestCredentials(admin.email)}
-                  className="p-2 bg-white hover:bg-[#EEF2FD] border border-[#E2E8F0] hover:border-[#3157D5]/40 rounded-xl text-left transition-colors"
-                >
-                  <p className="text-[11px] font-bold text-[#0F172A] truncate">{admin.name}</p>
-                  <p className="text-[9px] text-[#3157D5] font-semibold">{admin.role}</p>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 

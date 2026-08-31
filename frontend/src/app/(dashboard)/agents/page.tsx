@@ -19,30 +19,44 @@ import {
   Volume2,
   Wrench,
   BookOpen,
+  Trash2,
+  Phone,
+  Mic,
 } from "lucide-react";
+import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
+import { LiveVoiceCallModal } from "@/components/live-voice-call-modal";
 
 export default function AgentsPage() {
-  const { agents, toggleAgentStatus, duplicateAgent } = useAppStore();
+  const { agents, toggleAgentStatus, duplicateAgent, deleteAgent } = useAppStore();
 
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [providerFilter, setProviderFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"most_calls" | "newest" | "highest_success">("most_calls");
+  const [deleteModalAgent, setDeleteModalAgent] = useState<any | null>(null);
+  const [activeTestAgent, setActiveTestAgent] = useState<string | null>(null);
 
-  const filteredAgents = agents.filter((agent) => {
-    const matchesSearch =
-      agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.voice.voiceName.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredAgents = agents
+    .filter((agent) => {
+      const matchesSearch =
+        agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        agent.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        agent.voice.voiceName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === "all" ? true : agent.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" ? true : agent.status === statusFilter;
 
-    const matchesProvider =
-      providerFilter === "all" ? true : agent.voice.provider === providerFilter;
-
-    return matchesSearch && matchesStatus && matchesProvider;
-  });
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      if (sortBy === "most_calls") {
+        return (b.metrics?.totalCalls || 0) - (a.metrics?.totalCalls || 0);
+      }
+      if (sortBy === "highest_success") {
+        return (b.metrics?.successRate || 0) - (a.metrics?.successRate || 0);
+      }
+      return b.id.localeCompare(a.id);
+    });
 
   return (
     <div className="space-y-6">
@@ -53,7 +67,7 @@ export default function AgentsPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/templates"
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-[#F4F7FB] border border-[#E5EAF2] text-[#172033] text-xs font-semibold rounded-xl transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#F4F7FB] border border-[#E5EAF2] text-[#172033] text-xs font-semibold rounded-xl transition-all shadow-2xs"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#3157D5]" />
               <span>Browse Templates</span>
@@ -70,66 +84,71 @@ export default function AgentsPage() {
       />
 
       {/* Filter and View Bar */}
-      <div className="p-4 bg-white rounded-2xl border border-[#E5EAF2] card-shadow flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="p-4 bg-white rounded-3xl border border-[#E2E8F0] card-shadow flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Search */}
         <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-[#78849A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-[#94A3B8] absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search agents by name, voice, or prompt..."
+            placeholder="Search agents by name, role, or prompt..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-2 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs text-[#172033] placeholder-[#78849A] outline-none focus:border-[#3157D5]"
+            className="w-full pl-9 pr-3.5 py-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs text-[#0F172A] placeholder-[#94A3B8] outline-none focus:border-[#3157D5]"
           />
         </div>
 
         {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1 bg-[#F4F7FB] p-1 rounded-xl border border-[#E5EAF2]">
-            {["all", "active", "paused", "draft"].map((st) => (
+          {/* Agent Status Filter Tabs (Active, Paused, Draft, All) */}
+          <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-[#E2E8F0]">
+            {[
+              { id: "all", label: "All Agents" },
+              { id: "active", label: "Active" },
+              { id: "paused", label: "Paused" },
+              { id: "draft", label: "Draft" },
+            ].map((tab) => (
               <button
-                key={st}
-                onClick={() => setStatusFilter(st)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors capitalize ${
-                  statusFilter === st
-                    ? "bg-white text-[#3157D5] shadow-2xs"
-                    : "text-[#78849A] hover:text-[#172033]"
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all capitalize cursor-pointer ${
+                  statusFilter === tab.id
+                    ? "bg-[#3157D5] text-white shadow-2xs"
+                    : "text-[#64748B] hover:text-[#0F172A]"
                 }`}
               >
-                {st}
+                {tab.label}
               </button>
             ))}
           </div>
 
-          {/* Provider Filter */}
+          {/* Clean Sort Selector */}
           <select
-            value={providerFilter}
-            onChange={(e) => setProviderFilter(e.target.value)}
-            className="px-3 py-1.5 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs font-medium text-[#172033] outline-none focus:border-[#3157D5]"
+            value={sortBy}
+            onChange={(e: any) => setSortBy(e.target.value)}
+            className="px-3 py-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs font-bold text-[#0F172A] outline-none focus:border-[#3157D5] cursor-pointer"
           >
-            <option value="all">All TTS Providers</option>
-            <option value="ElevenLabs">ElevenLabs</option>
-            <option value="Cartesia">Cartesia</option>
-            <option value="Deepgram">Deepgram</option>
-            <option value="OpenAI">OpenAI</option>
+            <option value="most_calls">Sort: Most Call Volume</option>
+            <option value="highest_success">Sort: Highest Success Rate</option>
+            <option value="newest">Sort: Recently Updated</option>
           </select>
 
           {/* Grid / Table Toggle */}
-          <div className="flex items-center gap-1 bg-[#F4F7FB] p-1 rounded-xl border border-[#E5EAF2]">
+          <div className="flex items-center gap-1 bg-[#F8FAFC] p-1 rounded-xl border border-[#E2E8F0]">
             <button
               onClick={() => setViewMode("grid")}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${
-                viewMode === "grid" ? "bg-white text-[#3157D5] shadow-2xs" : "text-[#78849A]"
+              className={`p-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                viewMode === "grid" ? "bg-[#3157D5] text-white shadow-2xs" : "text-[#64748B] hover:text-[#0F172A]"
               }`}
+              title="Grid View"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setViewMode("table")}
-              className={`p-1.5 rounded-lg text-xs transition-colors ${
-                viewMode === "table" ? "bg-white text-[#3157D5] shadow-2xs" : "text-[#78849A]"
+              className={`p-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                viewMode === "table" ? "bg-[#3157D5] text-white shadow-2xs" : "text-[#64748B] hover:text-[#0F172A]"
               }`}
+              title="Table View"
             >
               <TableIcon className="w-3.5 h-3.5" />
             </button>
@@ -158,9 +177,17 @@ export default function AgentsPage() {
                       </div>
                       <div>
                         <h3 className="text-sm font-bold text-[#172033] leading-snug">{agent.name}</h3>
-                        <span className="inline-block text-[10px] font-semibold text-[#3157D5] bg-[#EEF2FD] px-2 py-0.2 rounded-md mt-0.5">
-                          {agent.voice.provider} • {agent.voice.voiceName}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="inline-block text-[10px] font-semibold text-[#3157D5] bg-[#EEF2FD] px-2 py-0.2 rounded-md">
+                            {agent.voice.provider} • {agent.voice.voiceName}
+                          </span>
+                          {agent.assignedPhoneNumber && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                              <Phone className="w-2.5 h-2.5" />
+                              {agent.assignedPhoneNumber}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -186,24 +213,24 @@ export default function AgentsPage() {
                     </span>
                   </div>
 
-                  {/* Metrics Matrix */}
+                  {/* Metrics Matrix (Live from Database) */}
                   <div className="grid grid-cols-3 gap-2 py-2.5 px-3 bg-[#F4F7FB] rounded-xl border border-[#E5EAF2] text-center mb-4">
                     <div>
                       <span className="text-[10px] text-[#78849A] block">Handled Calls</span>
                       <span className="text-xs font-bold text-[#172033]">
-                        {agent.metrics.totalCalls.toLocaleString()}
+                        {(agent.metrics?.totalCalls ?? 0).toLocaleString()}
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] text-[#78849A] block">Success %</span>
                       <span className="text-xs font-bold text-[#16A36A]">
-                        {agent.metrics.successRate}%
+                        {(agent.metrics?.totalCalls ?? 0) > 0 ? `${agent.metrics?.successRate ?? 0}%` : "0%"}
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] text-[#78849A] block">Avg Duration</span>
                       <span className="text-xs font-bold text-[#172033]">
-                        {formatDuration(agent.metrics.avgDurationSeconds)}
+                        {(agent.metrics?.totalCalls ?? 0) > 0 ? formatDuration(agent.metrics?.avgDurationSeconds ?? 0) : "0:00"}
                       </span>
                     </div>
                   </div>
@@ -215,7 +242,7 @@ export default function AgentsPage() {
                     <button
                       onClick={() => toggleAgentStatus(agent.id)}
                       title={agent.status === "active" ? "Pause Agent" : "Activate Agent"}
-                      className="p-1.5 rounded-lg border border-[#E5EAF2] hover:bg-[#F4F7FB] text-[#78849A] hover:text-[#172033] transition-colors"
+                      className="p-1.5 rounded-lg border border-[#E5EAF2] hover:bg-[#F4F7FB] text-[#78849A] hover:text-[#172033] transition-colors cursor-pointer"
                     >
                       {agent.status === "active" ? <Pause className="w-3.5 h-3.5 text-[#16A36A]" /> : <Play className="w-3.5 h-3.5" />}
                     </button>
@@ -223,24 +250,40 @@ export default function AgentsPage() {
                     <button
                       onClick={() => duplicateAgent(agent.id)}
                       title="Duplicate Agent"
-                      className="p-1.5 rounded-lg border border-[#E5EAF2] hover:bg-[#F4F4FB] text-[#78849A] hover:text-[#172033] transition-colors"
+                      className="p-1.5 rounded-lg border border-[#E5EAF2] hover:bg-[#F4F4FB] text-[#78849A] hover:text-[#172033] transition-colors cursor-pointer"
                     >
                       <Copy className="w-3.5 h-3.5" />
                     </button>
+
+                    <button
+                      onClick={() => setDeleteModalAgent(agent)}
+                      title="Delete Agent"
+                      className="p-1.5 rounded-lg border border-[#E5EAF2] hover:bg-rose-50 text-[#78849A] hover:text-rose-600 hover:border-rose-200 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setActiveTestAgent(agent.name)}
+                      className="px-2.5 py-1 text-xs font-bold bg-[#3157D5] text-white hover:bg-[#2646B8] rounded-lg transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <Mic className="w-3 h-3" />
+                      <span>Mic Call</span>
+                    </button>
+
                     <Link
                       href={`/agents/${agent.id}/test`}
                       className="px-2.5 py-1 text-xs font-semibold bg-[#EEF2FD] text-[#3157D5] hover:bg-[#E0E7FB] rounded-lg transition-colors flex items-center gap-1"
                     >
                       <Volume2 className="w-3 h-3" />
-                      <span>Test Voice</span>
+                      <span>Audio</span>
                     </Link>
 
                     <Link
                       href={`/agents/${agent.id}`}
-                      className="px-2.5 py-1 text-xs font-semibold bg-[#3157D5] text-white hover:bg-[#2646B8] rounded-lg transition-colors"
+                      className="px-2.5 py-1 text-xs font-semibold bg-[#F1F5F9] text-[#334155] hover:bg-[#E2E8F0] rounded-lg transition-colors"
                     >
                       Configure
                     </Link>
@@ -308,7 +351,7 @@ export default function AgentsPage() {
                       </td>
                       <td className="p-4">
                         <span className="font-semibold text-[#172033]">{agent.voice.voiceName}</span>
-                        <p className="text-[10px] text-[#78849A]">{agent.voice.provider}</p>
+                        <p className="text-[10px] text-[#78849A]">Neural Ultra-HD Speech</p>
                       </td>
                       <td className="p-4">
                         <StatusPill status={agent.status} size="sm" />
@@ -329,6 +372,13 @@ export default function AgentsPage() {
                         >
                           Edit
                         </Link>
+                        <button
+                          onClick={() => setDeleteModalAgent(agent)}
+                          title="Delete Agent"
+                          className="inline-flex items-center p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -344,6 +394,26 @@ export default function AgentsPage() {
           </div>
         </div>
       )}
+
+      {/* Live Voice Call Simulator Modal */}
+      <LiveVoiceCallModal
+        isOpen={!!activeTestAgent}
+        onClose={() => setActiveTestAgent(null)}
+        initialAgentName={activeTestAgent || "Rachel (Enterprise SDR)"}
+      />
+
+      {/* Professional Delete Confirmation Dialog */}
+      <ConfirmDeleteModal
+        isOpen={!!deleteModalAgent}
+        onClose={() => setDeleteModalAgent(null)}
+        onConfirm={async () => {
+          if (deleteModalAgent) {
+            await deleteAgent(deleteModalAgent.id);
+          }
+        }}
+        itemName={deleteModalAgent?.name}
+        itemType="Voice AI Agent"
+      />
     </div>
   );
 }

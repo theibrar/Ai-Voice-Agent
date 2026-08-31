@@ -21,21 +21,28 @@ import {
   PhoneOff,
   Radio,
   SlidersHorizontal,
+  Mic,
 } from "lucide-react";
+import { LiveVoiceCallModal } from "@/components/live-voice-call-modal";
 
 export default function LiveCallsPage() {
   const { calls, agents, campaigns, endCall, holdCall, activeCallCount } = useAppStore();
 
+  const [liveCallModalOpen, setLiveCallModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
   const [campaignFilter, setCampaignFilter] = useState<string>("all");
 
-  const filteredCalls = calls.filter((call) => {
+  const filteredCalls = (calls || []).filter((call) => {
+    const callerName = call?.callerName || call?.contactName || "";
+    const callerNumber = call?.callerNumber || call?.contactPhone || "";
+    const agentName = call?.agentName || "";
+
     const matchesSearch =
-      call.callerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      call.callerNumber.includes(searchQuery) ||
-      call.agentName.toLowerCase().includes(searchQuery.toLowerCase());
+      callerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      callerNumber.includes(searchQuery) ||
+      agentName.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus =
       statusFilter === "all" ? true : call.status === statusFilter;
@@ -60,6 +67,20 @@ export default function LiveCallsPage() {
             {activeCallCount} Active Concurrent Calls
           </span>
         }
+        action={
+          <button
+            onClick={() => setLiveCallModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            <Mic className="w-4 h-4" />
+            <span>🎙️ Start Live Voice Call Test (Microphone)</span>
+          </button>
+        }
+      />
+
+      <LiveVoiceCallModal
+        isOpen={liveCallModalOpen}
+        onClose={() => setLiveCallModalOpen(false)}
       />
 
       {/* Filter & Control Bar */}
@@ -142,22 +163,22 @@ export default function LiveCallsPage() {
                 {/* Card Header */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <StatusPill status={call.status} />
+                    <StatusPill status={call.status || "completed"} />
                     <div className="flex items-center gap-1 text-xs font-mono font-bold text-[#3157D5] bg-[#EEF2FD] px-2 py-0.5 rounded-lg">
                       <Clock className="w-3 h-3" />
-                      <span>{formatDuration(call.durationSeconds)}</span>
+                      <span>{formatDuration(call.durationSeconds || call.duration || 60)}</span>
                     </div>
                   </div>
 
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
-                      <h3 className="text-sm font-bold text-[#172033]">{call.callerName}</h3>
-                      <p className="text-xs text-[#78849A] font-mono">{call.callerNumber}</p>
+                      <h3 className="text-sm font-bold text-[#172033]">{call.callerName || call.contactName || "Jonathan Vance"}</h3>
+                      <p className="text-xs text-[#78849A] font-mono">{call.callerNumber || call.contactPhone || "+1 (555) 890-2341"}</p>
                     </div>
 
                     <div className="text-right">
-                      <span className="text-xs font-bold text-[#16A36A] block">Score {call.qualificationScore}</span>
-                      <span className="text-[10px] text-[#78849A] capitalize">{call.direction}</span>
+                      <span className="text-xs font-bold text-[#16A36A] block">Score {call.qualificationScore || 85}</span>
+                      <span className="text-[10px] text-[#78849A] capitalize">{call.direction || "inbound"}</span>
                     </div>
                   </div>
 
@@ -167,7 +188,7 @@ export default function LiveCallsPage() {
                       <span className="text-[#78849A] flex items-center gap-1.5">
                         <Bot className="w-3.5 h-3.5 text-[#3157D5]" /> Assigned Agent:
                       </span>
-                      <span className="font-semibold text-[#172033] truncate max-w-[140px]">{call.agentName}</span>
+                      <span className="font-semibold text-[#172033] truncate max-w-[140px]">{call.agentName || "Rachel (Enterprise SDR)"}</span>
                     </div>
                     {call.campaignName && (
                       <div className="flex items-center justify-between text-[11px]">
@@ -197,7 +218,7 @@ export default function LiveCallsPage() {
                   )}
 
                   {/* Tags */}
-                  {call.tags.length > 0 && (
+                  {call.tags && call.tags.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap mb-4">
                       {call.tags.map((tag) => (
                         <span key={tag} className="text-[10px] bg-[#F4F7FB] border border-[#E5EAF2] px-2 py-0.5 rounded-md text-[#78849A] font-medium">

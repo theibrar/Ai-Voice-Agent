@@ -26,9 +26,34 @@ export default function ForgotPasswordPage() {
     formState: { errors },
   } = useForm<FormValues>();
 
-  const onSubmit = (data: FormValues) => {
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const onSubmit = async (data: FormValues) => {
     setLoading(true);
-    setTimeout(() => {
+    setAuthError(null);
+
+    try {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1") + "/auth/forgot-password";
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: data.email.trim() }),
+      });
+
+      const resData = await res.json();
+
+      if (!res.ok) {
+        setLoading(false);
+        const errMsg = resData.error || "No registered account found with this email address.";
+        setAuthError(errMsg);
+        addToast({
+          title: "Account Not Found",
+          description: errMsg,
+          type: "warning",
+        });
+        return;
+      }
+
       setLoading(false);
       setSubmitted(true);
       addToast({
@@ -36,7 +61,16 @@ export default function ForgotPasswordPage() {
         description: `Recovery instructions dispatched to ${data.email}`,
         type: "success",
       });
-    }, 600);
+    } catch (err: any) {
+      setLoading(false);
+      const errMsg = "Unable to connect to authentication server. Please check backend.";
+      setAuthError(errMsg);
+      addToast({
+        title: "Connection Error",
+        description: errMsg,
+        type: "warning",
+      });
+    }
   };
 
   return (
@@ -60,6 +94,13 @@ export default function ForgotPasswordPage() {
                 Enter your verified organization email and we will send you a secure password reset link.
               </p>
             </div>
+
+            {authError && (
+              <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>

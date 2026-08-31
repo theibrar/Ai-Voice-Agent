@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
+import { VoiceAiEngine } from "@/lib/mock-data/super-admin";
 import {
   Cpu,
   Mic,
@@ -21,6 +22,7 @@ import {
   Server,
   Globe,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 export default function SuperAdminEnginesPage() {
@@ -38,6 +40,7 @@ export default function SuperAdminEnginesPage() {
   const [activeCategory, setActiveCategory] = useState<"all" | "llm" | "tts" | "stt">("all");
   const [tenantMatrixModalOpen, setTenantMatrixModalOpen] = useState(false);
   const [customModelModalOpen, setCustomModelModalOpen] = useState(false);
+  const [engineToDelete, setEngineToDelete] = useState<VoiceAiEngine | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState(tenants[0]?.id || "");
 
   // Custom Model Form State
@@ -46,7 +49,7 @@ export default function SuperAdminEnginesPage() {
   const [category, setCategory] = useState<"llm" | "tts" | "stt">("llm");
   const [modelIdentifier, setModelIdentifier] = useState("mistralai/Mistral-Large-Instruct-2411");
   const [baseUrl, setBaseUrl] = useState("https://vllm.internal.apexvoice.ai/v1");
-  const [apiKey, setApiKey] = useState("sk-custom-vllm-key-2026");
+  const [apiKey, setApiKey] = useState("");
   const [latencyAvgMs, setLatencyAvgMs] = useState(110);
   const [costPerUnit, setCostPerUnit] = useState("$0.40 / 1M tokens");
   const [tierRequirement, setTierRequirement] = useState<"all" | "growth_plus" | "enterprise_only">("all");
@@ -147,116 +150,130 @@ export default function SuperAdminEnginesPage() {
 
       {/* 3. Engine Cards Matrix */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredEngines.map((engine) => {
-          const isLlm = engine.category === "llm";
-          const isTts = engine.category === "tts";
-          const isStt = engine.category === "stt";
+        {filteredEngines.length > 0 ? (
+          filteredEngines.map((engine) => {
+            const isLlm = engine.category === "llm";
+            const isTts = engine.category === "tts";
+            const isStt = engine.category === "stt";
 
-          return (
-            <div
-              key={engine.id}
-              className={`p-6 bg-white rounded-3xl border transition-all shadow-xs flex flex-col justify-between space-y-4 ${
-                engine.isCustom
-                  ? "border-amber-300 bg-gradient-to-b from-amber-50/20 to-white"
-                  : engine.isGlobalDefault
-                  ? "border-[#3157D5] ring-2 ring-[#3157D5]/30"
-                  : "border-[#E2E8F0] hover:border-[#3157D5]/40"
-              }`}
-            >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center shadow-md shadow-[#3157D5]/20">
-                      {isLlm ? <Cpu className="w-5 h-5 text-white" /> : isTts ? <Headphones className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <h3 className="text-base font-bold text-[#0F172A] leading-tight">{engine.name}</h3>
-                        {engine.isCustom && (
-                          <span className="text-[8px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
-                            Custom
-                          </span>
-                        )}
-                        {engine.isGlobalDefault && (
-                          <span className="text-[8px] font-bold text-[#3157D5] bg-[#EEF2FD] px-1.5 py-0.2 rounded">
-                            Default
-                          </span>
-                        )}
+            return (
+              <div
+                key={engine.id}
+                className={`p-6 bg-white rounded-3xl border transition-all shadow-xs flex flex-col justify-between space-y-4 ${
+                  engine.isCustom
+                    ? "border-amber-300 bg-gradient-to-b from-amber-50/20 to-white"
+                    : engine.isGlobalDefault
+                    ? "border-[#3157D5] ring-2 ring-[#3157D5]/30"
+                    : "border-[#E2E8F0] hover:border-[#3157D5]/40"
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center shadow-md shadow-[#3157D5]/20">
+                        {isLlm ? <Cpu className="w-5 h-5 text-white" /> : isTts ? <Headphones className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
                       </div>
-                      <p className="text-[11px] text-[#64748B]">{engine.provider} • {engine.category.toUpperCase()}</p>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="text-base font-bold text-[#0F172A] leading-tight">{engine.name}</h3>
+                          {engine.isCustom && (
+                            <span className="text-[8px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded">
+                              Custom
+                            </span>
+                          )}
+                          {engine.isGlobalDefault && (
+                            <span className="text-[8px] font-bold text-[#3157D5] bg-[#EEF2FD] px-1.5 py-0.2 rounded">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#64748B]">{engine.provider} • {engine.category.toUpperCase()}</p>
+                      </div>
+                    </div>
+
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      engine.status === "active" ? "bg-[#EEF2FD] text-[#3157D5]" : "bg-[#F1F5F9] text-[#64748B]"
+                    }`}>
+                      {engine.status}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-[#64748B] leading-relaxed">
+                    {engine.description}
+                  </p>
+
+                  {engine.isCustom && engine.baseUrl && (
+                    <div className="p-2 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] text-[10px] font-mono text-[#3157D5] truncate">
+                      Endpoint: {engine.baseUrl}
+                    </div>
+                  )}
+
+                  {/* Technical Specs */}
+                  <div className="p-3.5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#64748B]">Average Turn Latency:</span>
+                      <span className="font-mono font-bold text-[#3157D5]">{engine.latencyAvgMs} ms</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#64748B]">Platform Cost / Unit:</span>
+                      <span className="font-mono text-[#0F172A] font-semibold">{engine.costPerUnit}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#64748B]">Tier Restriction:</span>
+                      <span className="font-bold text-[#0F172A] capitalize">{engine.tierRequirement.replace("_", "+ ")}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#64748B]">Identifier:</span>
+                      <span className="font-mono text-[10px] text-[#0F172A] truncate max-w-[140px]">{engine.modelIdentifier}</span>
                     </div>
                   </div>
-
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    engine.status === "active" ? "bg-[#EEF2FD] text-[#3157D5]" : "bg-[#F1F5F9] text-[#64748B]"
-                  }`}>
-                    {engine.status}
-                  </span>
                 </div>
 
-                <p className="text-xs text-[#64748B] leading-relaxed">
-                  {engine.description}
-                </p>
-
-                {engine.isCustom && engine.baseUrl && (
-                  <div className="p-2 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] text-[10px] font-mono text-[#3157D5] truncate">
-                    Endpoint: {engine.baseUrl}
-                  </div>
-                )}
-
-                {/* Technical Specs */}
-                <div className="p-3.5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#64748B]">Average Turn Latency:</span>
-                    <span className="font-mono font-bold text-[#3157D5]">{engine.latencyAvgMs} ms</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#64748B]">Platform Cost / Unit:</span>
-                    <span className="font-mono text-[#0F172A] font-semibold">{engine.costPerUnit}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#64748B]">Tier Restriction:</span>
-                    <span className="font-bold text-[#0F172A] capitalize">{engine.tierRequirement.replace("_", "+ ")}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#64748B]">Identifier:</span>
-                    <span className="font-mono text-[10px] text-[#0F172A] truncate max-w-[140px]">{engine.modelIdentifier}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-3 border-t border-[#EDF2F7] flex items-center justify-between gap-2">
-                <button
-                  onClick={() => toggleEngineStatus(engine.id)}
-                  className="flex-1 py-2 bg-white hover:bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl text-xs font-bold text-[#0F172A] transition-colors"
-                >
-                  {engine.status === "active" ? "Deprecate" : "Re-activate"}
-                </button>
-
-                {engine.isCustom && (
+                {/* Action Buttons */}
+                <div className="pt-3 border-t border-[#EDF2F7] flex items-center justify-between gap-2">
                   <button
-                    onClick={() => deleteEngine(engine.id)}
-                    className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
-                    title="Remove custom model"
+                    onClick={() => toggleEngineStatus(engine.id)}
+                    className="flex-1 py-2 bg-white hover:bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl text-xs font-bold text-[#0F172A] transition-colors cursor-pointer"
+                  >
+                    {engine.status === "active" ? "Deprecate" : "Re-activate"}
+                  </button>
+
+                  <select
+                    value={engine.tierRequirement}
+                    onChange={(e: any) => updateEngineTierRequirement(engine.id, e.target.value)}
+                    className="py-1.5 px-2.5 bg-[#EEF2FD] text-[#3157D5] border border-[#3157D5]/20 rounded-xl text-xs font-bold outline-none cursor-pointer"
+                  >
+                    <option value="all">All Plans</option>
+                    <option value="growth_plus">Growth+ Only</option>
+                    <option value="enterprise_only">Enterprise Only</option>
+                  </select>
+
+                  <button
+                    onClick={() => setEngineToDelete(engine)}
+                    className="p-2 text-rose-500 hover:text-rose-700 bg-white hover:bg-rose-50 border border-[#E2E8F0] hover:border-rose-300 rounded-xl transition-all cursor-pointer shadow-2xs shrink-0"
+                    title={`Delete ${engine.name}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
-                )}
-
-                <select
-                  value={engine.tierRequirement}
-                  onChange={(e: any) => updateEngineTierRequirement(engine.id, e.target.value)}
-                  className="py-1.5 px-2.5 bg-[#EEF2FD] text-[#3157D5] border border-[#3157D5]/20 rounded-xl text-xs font-bold outline-none"
-                >
-                  <option value="all">All Plans</option>
-                  <option value="growth_plus">Growth+ Only</option>
-                  <option value="enterprise_only">Enterprise Only</option>
-                </select>
+                </div>
               </div>
+            );
+          })
+        ) : (
+          <div className="col-span-full p-12 text-center bg-white rounded-3xl border border-[#E2E8F0] shadow-xs space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center mx-auto">
+              <Cpu className="w-6 h-6" />
             </div>
-          );
-        })}
+            <h3 className="font-bold text-sm text-[#0F172A]">No Voice AI Engines Found</h3>
+            <p className="text-xs text-[#64748B]">No models match the selected category. You can register a custom model or switch filters.</p>
+            <button
+              onClick={() => setCustomModelModalOpen(true)}
+              className="px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs"
+            >
+              Register Custom Model
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 4. Register Custom Model Modal */}
@@ -569,9 +586,69 @@ export default function SuperAdminEnginesPage() {
             <div className="flex justify-end pt-3 border-t border-[#E2E8F0]">
               <button
                 onClick={() => setTenantMatrixModalOpen(false)}
-                className="px-5 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-colors"
+                className="px-5 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
               >
                 Save Entitlements
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Delete Engine Confirmation Modal */}
+      {engineToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in zoom-in-95 duration-150 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+              <div className="flex items-center gap-2.5 text-rose-600">
+                <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center font-bold">
+                  <Trash2 className="w-5 h-5 text-rose-600" />
+                </div>
+                <h3 className="text-base font-bold text-[#0F172A]">Delete Voice AI Engine</h3>
+              </div>
+              <button
+                onClick={() => setEngineToDelete(null)}
+                className="p-1.5 text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9] rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-[#64748B]">
+              <p>
+                Are you sure you want to permanently delete{" "}
+                <strong className="text-[#0F172A] font-bold">{engineToDelete.name}</strong>?
+              </p>
+              <div className="p-3 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-1 font-mono text-[11px]">
+                <p><span className="text-[#64748B]">Provider:</span> <strong className="text-[#0F172A]">{engineToDelete.provider}</strong></p>
+                <p><span className="text-[#64748B]">Category:</span> <strong className="text-[#0F172A]">{engineToDelete.category.toUpperCase()}</strong></p>
+                <p><span className="text-[#64748B]">Identifier:</span> <strong className="text-[#0F172A]">{engineToDelete.modelIdentifier}</strong></p>
+              </div>
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2 text-rose-700">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span className="text-[11px] font-semibold leading-relaxed">
+                  This model will be permanently deleted from the database and will no longer be available for tenant assignment or voice agents.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
+              <button
+                type="button"
+                onClick={() => setEngineToDelete(null)}
+                className="px-4 py-2 text-xs font-bold text-[#64748B] hover:text-[#0F172A] rounded-xl hover:bg-[#F1F5F9] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteEngine(engineToDelete.id);
+                  setEngineToDelete(null);
+                }}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+              >
+                Permanently Delete Engine
               </button>
             </div>
           </div>

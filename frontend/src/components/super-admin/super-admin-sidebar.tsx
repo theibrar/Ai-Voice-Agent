@@ -4,7 +4,9 @@ import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { translate, getStoredLanguage } from "@/lib/languages";
 import {
   ShieldAlert,
   BarChart3,
@@ -29,6 +31,7 @@ import {
   DollarSign,
   Layers,
   PieChart,
+  Server,
 } from "lucide-react";
 
 interface NavItem {
@@ -59,6 +62,8 @@ function SuperAdminSidebarContent() {
     sipCarriers,
     engines,
   } = useSuperAdminStore();
+
+  const { setActiveWorkspace } = useAppStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -152,6 +157,13 @@ function SuperAdminSidebarContent() {
     {
       title: "Infrastructure & Gateways",
       items: [
+        {
+          label: "External Server & APIs",
+          href: "/super-admin/external-server",
+          icon: Server,
+          badge: "9 APIs",
+          badgeVariant: "live",
+        },
         {
           label: "Email & SMS Gateways",
           href: "/super-admin/gateways",
@@ -278,11 +290,13 @@ function SuperAdminSidebarContent() {
 
         {/* Nav Items List */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 sidebar-white-scrollbar bg-white">
-          {navSections.map((section, idx) => (
+          {navSections.map((section, idx) => {
+            const lang = typeof window !== "undefined" ? getStoredLanguage() : "en";
+            return (
             <div key={idx} className="space-y-1">
               {section.title && !superAdminSidebarCollapsed && (
                 <div className="px-3 text-[10px] font-extrabold uppercase tracking-widest text-[#64748B]">
-                  {section.title}
+                  {translate(section.title, lang)}
                 </div>
               )}
               {section.items.map((item) => {
@@ -306,7 +320,7 @@ function SuperAdminSidebarContent() {
                         ? "bg-[#3157D5] text-white shadow-md shadow-[#3157D5]/30 font-extrabold"
                         : "text-[#0F172A] hover:bg-[#3157D5] hover:text-white hover:shadow-md hover:shadow-[#3157D5]/20"
                     )}
-                    title={superAdminSidebarCollapsed ? item.label : undefined}
+                    title={superAdminSidebarCollapsed ? translate(item.label, lang) : undefined}
                   >
                     <Icon
                       className={cn(
@@ -316,7 +330,7 @@ function SuperAdminSidebarContent() {
                     />
 
                     {!superAdminSidebarCollapsed && (
-                      <span className="flex-1 truncate group-hover:text-white">{item.label}</span>
+                      <span className="flex-1 truncate group-hover:text-white">{translate(item.label, lang)}</span>
                     )}
 
                     {!superAdminSidebarCollapsed && item.badge && (
@@ -337,58 +351,37 @@ function SuperAdminSidebarContent() {
                 );
               })}
             </div>
-          ))}
+          );
+        })}
         </div>
 
-        {/* Footer: Tenant Portal Switcher & Super Admin Profile */}
+        {/* Footer: Super Admin Profile */}
         <div className="p-3 border-t border-[#E2E8F0] space-y-3 shrink-0 bg-white">
           {!superAdminSidebarCollapsed ? (
-            <>
-              {/* Tenant Dashboard Switcher Link */}
-              <Link
-                href="/dashboard"
-                className="flex items-center justify-between p-2.5 bg-[#EEF2FD] hover:bg-[#3157D5] text-[#3157D5] hover:text-white rounded-xl text-xs font-bold transition-all group border border-[#3157D5]/20"
-              >
-                <div className="flex items-center gap-2">
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Tenant Admin Portal</span>
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#3157D5] text-white flex items-center justify-center font-extrabold text-xs shadow-md shadow-[#3157D5]/20">
+                  {currentSuperAdmin.avatar}
                 </div>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </Link>
-
-              {/* Super Admin User Profile */}
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#3157D5] text-white flex items-center justify-center font-extrabold text-xs shadow-md shadow-[#3157D5]/20">
-                    {currentSuperAdmin.avatar}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-[#0F172A] leading-tight truncate max-w-[110px]">
-                      {currentSuperAdmin.name}
-                    </span>
-                    <span className="text-[10px] text-[#3157D5] font-semibold">
-                      {currentSuperAdmin.role}
-                    </span>
-                  </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-[#0F172A] leading-tight truncate max-w-[110px]">
+                    {currentSuperAdmin.name}
+                  </span>
+                  <span className="text-[10px] text-[#3157D5] font-semibold">
+                    {currentSuperAdmin.role}
+                  </span>
                 </div>
-                <Link
-                  href="/super-admin/login"
-                  className="text-[#64748B] hover:text-[#0F172A] p-1 rounded-lg hover:bg-[#F1F5F9]"
-                  title="Sign out of Super Admin"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Link>
               </div>
-            </>
+              <Link
+                href="/super-admin/login"
+                className="text-[#64748B] hover:text-[#0F172A] p-1 rounded-lg hover:bg-[#F1F5F9]"
+                title="Sign out of Super Admin"
+              >
+                <LogOut className="w-4 h-4" />
+              </Link>
+            </div>
           ) : (
             <div className="flex flex-col items-center gap-3 py-1">
-              <Link
-                href="/dashboard"
-                className="w-10 h-10 rounded-2xl bg-[#EEF2FD] border border-[#3157D5]/30 flex items-center justify-center text-[#3157D5] hover:bg-[#3157D5] hover:text-white transition-colors"
-                title="Switch to Tenant Admin View"
-              >
-                <Zap className="w-4 h-4" />
-              </Link>
               <div className="w-9 h-9 rounded-2xl bg-[#3157D5] text-white flex items-center justify-center font-extrabold text-xs shadow-md shadow-[#3157D5]/20">
                 {currentSuperAdmin.avatar}
               </div>

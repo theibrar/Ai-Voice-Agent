@@ -15,7 +15,7 @@ export function SuperAdminShell({ children }: SuperAdminShellProps) {
   const { superAdminSidebarCollapsed, toasts, removeToast } = useSuperAdminStore();
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#0F172A] flex flex-col selection:bg-[#3157D5]/20 selection:text-[#0F172A]">
+    <div className="min-h-screen bg-white dark:bg-[#070A11] text-[#0F172A] dark:text-[#F8FAFC] flex flex-col selection:bg-[#3157D5]/20 selection:text-[#0F172A]">
       {/* Super Admin Sidebar */}
       <SuperAdminSidebar />
 

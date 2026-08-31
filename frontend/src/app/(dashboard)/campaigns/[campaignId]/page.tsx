@@ -49,9 +49,14 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
             <div className="flex items-center gap-2.5">
               <h1 className="text-xl font-bold text-[#172033]">{campaign.name}</h1>
               <StatusPill status={campaign.status} />
+              {campaign.customTypeTitle && (
+                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-md">
+                  {campaign.customTypeTitle}
+                </span>
+              )}
             </div>
             <p className="text-xs text-[#78849A] mt-0.5">
-              Assigned: {campaign.agentName} • Caller ID: {campaign.phoneNumber} • {campaign.schedule.days.join(", ")}
+              Assigned: {campaign.agentName} • Caller ID: {campaign.phoneNumber} • {campaign.schedule?.days?.join(", ") || "Mon-Fri"}
             </p>
           </div>
         </div>
@@ -59,7 +64,7 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
         <div className="flex items-center gap-2">
           <button
             onClick={() => toggleCampaignStatus(campaign.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl shadow-xs transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer ${
               campaign.status === "active"
                 ? "bg-[#FEF7EC] text-[#D99025] hover:bg-[#FDEBD0] border border-[#D99025]/30"
                 : "bg-[#16A36A] text-white hover:bg-[#138A5A]"
@@ -70,6 +75,19 @@ export default function CampaignDetailPage({ params }: CampaignDetailPageProps) 
           </button>
         </div>
       </div>
+
+      {/* Campaign Strategy & Agent Objective Grounding */}
+      {campaign.campaignObjective && (
+        <div className="p-4 bg-white rounded-2xl border border-[#E5EAF2] card-shadow space-y-1">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#3157D5]">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Agent Conversational Strategy: {campaign.customTypeTitle || campaign.type.replace(/_/g, " ").toUpperCase()}</span>
+          </div>
+          <p className="text-xs text-[#78849A] leading-relaxed">
+            "{campaign.campaignObjective}"
+          </p>
+        </div>
+      )}
 
       {/* Conversion Funnel Matrix */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

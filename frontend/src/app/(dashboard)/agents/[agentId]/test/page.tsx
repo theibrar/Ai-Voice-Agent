@@ -2,11 +2,13 @@
 
 import React, { useState, use, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { PageHeader } from "@/components/page-header";
 import { StatusPill } from "@/components/status-pill";
 import { AudioWaveform } from "@/components/audio-waveform";
 import { formatDuration } from "@/lib/utils";
+import { Agent } from "@/lib/types";
 import {
   Mic,
   MicOff,
@@ -22,11 +24,9 @@ import {
   Send,
   Sliders,
   CheckCircle2,
+  Play,
+  Pause,
 } from "lucide-react";
-
-interface TestAgentPageProps {
-  params: Promise<{ agentId: string }>;
-}
 
 interface SimulatorTurn {
   id: string;
@@ -37,24 +37,66 @@ interface SimulatorTurn {
   kbMatch?: { title: string; score: number };
 }
 
-export default function TestAgentPlayground({ params }: TestAgentPageProps) {
-  const resolvedParams = use(params);
+export default function TestAgentPlayground() {
+  const routeParams = useParams<{ agentId: string }>();
+  const currentAgentId = routeParams?.agentId || "";
   const { agents, addToast } = useAppStore();
 
-  const agent = agents.find((a) => a.id === resolvedParams.agentId) || agents[0];
+  const fallbackAgent: Agent = {
+    id: currentAgentId || "agent-preview",
+    name: "AI Voice Agent",
+    description: "Autonomous voice assistant handling inbound & outbound calls.",
+    avatar: "/avatars/rachel.png",
+    color: "#3157D5",
+    status: "active",
+    voice: {
+      provider: "Kokoro Neural" as any,
+      voiceId: "af_heart",
+      voiceName: "Rachel (US Professional)",
+      gender: "female",
+      accent: "English (US)",
+      speed: 1.0,
+      pitch: 0.0,
+      stability: 0.8,
+      similarity: 0.9,
+    },
+    language: "English (US)",
+    greeting: "Hi there! Thanks for calling. My name is Rachel, your voice assistant. How can I help you today?",
+    systemPrompt: "You are a helpful and empathetic AI voice assistant.",
+    responseStyle: "conversational",
+    interruptionSensitivity: 0.7,
+    silenceTimeoutSeconds: 4,
+    maxCallDurationMinutes: 15,
+    knowledgeBaseIds: [],
+    tools: [],
+    humanRealism: {
+      enableMicroBreaths: true,
+      enableBackchanneling: true,
+      enableAdaptiveEmotion: true,
+      maxWordsPerTurn: 25,
+      fillerFrequency: "medium",
+    },
+    transferRules: { enabled: false },
+    callEndingRules: { goodbyePhrase: "Thank you for calling. Have a great day!", hangupOnSilence: true, afterHoursBehavior: "voicemail" },
+    metrics: { totalCalls: 0, avgDurationSeconds: 0, successRate: 100, sentimentScore: 100, connectedCalls: 0 },
+    lastUpdated: new Date().toISOString(),
+  };
+
+  const agent: Agent = agents.find((a) => a.id === currentAgentId) || agents[0] || fallbackAgent;
 
   const [isMicActive, setIsMicActive] = useState(false);
   const [inputText, setInputText] = useState("");
   const [isThinking, setIsThinking] = useState(false);
-  const [latency, setLatency] = useState(274);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [latency, setLatency] = useState(240);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const [turns, setTurns] = useState<SimulatorTurn[]>([
     {
       id: "t-0",
       speaker: "agent",
-      text: agent.greeting,
-      latencyMs: 180,
+      text: agent?.greeting || "Hi there! Thanks for calling. How can I help you today?",
+      latencyMs: 140,
     },
   ]);
 
@@ -63,6 +105,35 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [turns, isThinking]);
+
+  // Audio Speech Synthesis for Agent
+  const speakText = (text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = agent.voice?.speed || 1.0;
+
+    const allVoices = window.speechSynthesis.getVoices();
+    const femaleKeywords = ["zira", "jenny", "aria", "samantha", "victoria", "susan", "karen", "female", "natural"];
+    const maleKeywords = ["david", "guy", "mark", "richard", "george", "male"];
+
+    if (agent.voice?.gender === "female") {
+      const match = allVoices.find((v) => femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) || allVoices[0];
+      if (match) utterance.voice = match;
+      utterance.pitch = 1.25;
+    } else {
+      const match = allVoices.find((v) => maleKeywords.some((k) => v.name.toLowerCase().includes(k))) || allVoices[0];
+      if (match) utterance.voice = match;
+      utterance.pitch = 0.88;
+    }
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+
+    window.speechSynthesis.speak(utterance);
+  };
 
   const handleSendMessage = (textToSend?: string) => {
     const text = textToSend || inputText;
@@ -78,25 +149,28 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
     setInputText("");
     setIsThinking(true);
 
-    const generatedLatency = Math.floor(Math.random() * 60) + 240;
+    const generatedLatency = Math.floor(Math.random() * 50) + 210;
     setLatency(generatedLatency);
 
-    // Mock AI Response generator based on agent type
+    // Mock intelligent AI Response generator with tool calling & RAG grounding
     setTimeout(() => {
-      let replyText = `Thanks for asking about that! Our platform guarantees high availability with ${agent.voice.voiceName} speech synthesis.`;
+      let replyText = `Thanks for asking! I'm ${agent.name}, powered by Kokoro-82M neural speech. How can I help you further?`;
       let toolCall: { name: string; result: string } | undefined = undefined;
       let kbMatch: { title: string; score: number } | undefined = undefined;
 
       const lower = text.toLowerCase();
-      if (lower.includes("price") || lower.includes("cost") || lower.includes("tier")) {
-        replyText = "Our Enterprise tier starts at $0.08 per minute with dedicated concurrency ports and volume discounts above 50k minutes.";
-        kbMatch = { title: "Apex Pricing & Tier Matrix 2026", score: 0.94 };
-      } else if (lower.includes("demo") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("book")) {
-        replyText = "I have checked our calendar and have tomorrow at 2:00 PM Pacific open. Would you like me to book that slot for you?";
-        toolCall = { name: "check_calendar_availability", result: "Slot available: Tomorrow 2:00 PM PST" };
-      } else if (lower.includes("soc2") || lower.includes("hipaa") || lower.includes("security")) {
-        replyText = "We are fully SOC2 Type II and HIPAA compliant with signed BAAs and zero persistent audio data retention.";
-        kbMatch = { title: "Apex Enterprise Architecture & Security FAQ", score: 0.98 };
+      if (lower.includes("price") || lower.includes("cost") || lower.includes("rate") || lower.includes("tier")) {
+        replyText = "Our pricing starts at $0.08 per minute with full Kokoro TTS acceleration and zero per-seat fees.";
+        kbMatch = { title: "Apex Pricing & Tier Matrix 2026", score: 0.96 };
+      } else if (lower.includes("demo") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("book") || lower.includes("calendar")) {
+        replyText = "I just checked our open slots and have tomorrow at 2:00 PM available. Would you like me to reserve that slot for you?";
+        toolCall = { name: "check_calendar_availability", result: "Slot reserved: Tomorrow 2:00 PM PST" };
+      } else if (lower.includes("security") || lower.includes("soc2") || lower.includes("hipaa")) {
+        replyText = "We are fully SOC2 Type II and HIPAA compliant with signed BAAs and zero persistent caller audio retention.";
+        kbMatch = { title: "Apex Enterprise Architecture & Compliance", score: 0.99 };
+      } else if (lower.includes("human") || lower.includes("transfer") || lower.includes("person") || lower.includes("agent")) {
+        replyText = "I'd be glad to connect you with our senior specialist right now. One moment while I transfer your call.";
+        toolCall = { name: "transfer_to_human_specialist", result: "Routing to +1 (800) 555-0199" };
       }
 
       const agentTurn: SimulatorTurn = {
@@ -110,52 +184,92 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
 
       setTurns((prev) => [...prev, agentTurn]);
       setIsThinking(false);
-    }, 600);
+      speakText(replyText);
+    }, 450);
   };
 
   const handleToggleMic = () => {
     if (!isMicActive) {
       setIsMicActive(true);
       addToast({
-        title: "Microphone Active (Simulator)",
-        description: "Listening for simulated speech turns...",
+        title: "Voice Mic Input Active",
+        description: "Listening for simulated voice turn...",
         type: "success",
       });
+
+      // Browser Web Speech Recognition if available
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const recognition = new SpeechRecognition();
+          recognition.lang = agent.language?.includes("Spanish") ? "es-ES" : "en-US";
+          recognition.interimResults = false;
+          recognition.maxAlternatives = 1;
+
+          recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            handleSendMessage(transcript);
+            setIsMicActive(false);
+          };
+
+          recognition.onerror = () => {
+            setIsMicActive(false);
+            handleSendMessage("Can you give me an overview of your services and pricing?");
+          };
+
+          recognition.onend = () => setIsMicActive(false);
+          recognition.start();
+          return;
+        } catch (e) {
+          // Fallback simulation
+        }
+      }
+
       setTimeout(() => {
-        handleSendMessage("Hi Rachel, can you explain your pricing and schedule a quick demo?");
+        handleSendMessage("Can you give me an overview of your services and pricing?");
         setIsMicActive(false);
-      }, 1500);
+      }, 1800);
     } else {
       setIsMicActive(false);
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      setIsSpeaking(false);
     }
   };
 
   const resetPlayground = () => {
-    setTurns([{ id: "t-0", speaker: "agent", text: agent.greeting, latencyMs: 180 }]);
-    addToast({ title: "Playground Reset", description: "Cleared transcript logs.", type: "info" });
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeaking(false);
+    setTurns([{ id: "t-0", speaker: "agent", text: agent.greeting, latencyMs: 140 }]);
+    addToast({ title: "Playground Reset", description: "Transcript cleared and re-initialized.", type: "info" });
   };
 
   return (
     <div className="space-y-6">
-      {/* Top bar */}
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
             href="/agents"
-            className="p-2 bg-white border border-[#E5EAF2] rounded-xl text-[#78849A] hover:text-[#172033] transition-colors"
+            className="p-2 bg-white dark:bg-[#0F172A] border border-[#E5EAF2] dark:border-[#1E293B] rounded-xl text-[#78849A] hover:text-[#172033] dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-bold text-[#172033]">Voice Simulator: {agent.name}</h1>
-              <span className="text-xs font-bold text-[#16A36A] bg-[#E8F7F0] px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <h1 className="text-xl font-bold text-[#172033] dark:text-white">
+                Live Voice Simulator: {agent.name}
+              </h1>
+              <span className="text-xs font-bold text-[#16A36A] bg-[#E8F7F0] dark:bg-[#16A36A]/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#16A36A] animate-pulse" />
                 Live Playground
               </span>
             </div>
-            <p className="text-xs text-[#78849A] mt-0.5">
-              {agent.voice.provider} • {agent.voice.voiceName} • Roundtrip Latency: {latency}ms
+            <p className="text-xs text-[#78849A] dark:text-[#94A3B8] mt-0.5">
+              {agent.voice?.provider || "Kokoro Neural"} • {agent.voice?.voiceName} • Roundtrip Latency: {latency}ms
             </p>
           </div>
         </div>
@@ -163,7 +277,7 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={resetPlayground}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-[#E5EAF2] hover:bg-[#F4F7FB] text-[#78849A] hover:text-[#172033] text-xs font-semibold rounded-xl transition-all"
+            className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E5EAF2] dark:border-[#1E293B] hover:bg-[#F4F7FB] text-[#78849A] hover:text-[#172033] dark:hover:text-white text-xs font-semibold rounded-xl transition-all cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Reset Test</span>
@@ -173,7 +287,7 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
             className="flex items-center gap-1.5 px-3.5 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-semibold rounded-xl shadow-xs transition-all"
           >
             <Sliders className="w-3.5 h-3.5" />
-            <span>Edit Instructions</span>
+            <span>Edit Agent Settings</span>
           </Link>
         </div>
       </div>
@@ -183,26 +297,27 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
         {/* Left 2 cols: Audio Waveform & Speech Chat Exchange */}
         <div className="lg:col-span-2 space-y-4">
           {/* Real-time Waveform Deck */}
-          <div className="p-5 bg-white rounded-2xl border border-[#E5EAF2] card-shadow space-y-4">
+          <div className="p-5 bg-white dark:bg-[#0F172A] rounded-2xl border border-[#E5EAF2] dark:border-[#1E293B] card-shadow space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Volume2 className="w-4 h-4 text-[#3157D5]" />
-                <h3 className="text-xs font-bold text-[#172033] uppercase tracking-wider">
-                  Neural Speech Audio Visualizer
+                <h3 className="text-xs font-bold text-[#172033] dark:text-white uppercase tracking-wider">
+                  Neural Speech Audio Stream
                 </h3>
               </div>
-              <span className="text-xs font-mono font-bold text-[#3157D5] bg-[#EEF2FD] px-2.5 py-0.5 rounded-lg flex items-center gap-1">
+              <span className="text-xs font-mono font-bold text-[#3157D5] bg-[#EEF2FD] dark:bg-[#3157D5]/20 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
                 <Zap className="w-3 h-3" />
-                {latency}ms STT+LLM+TTS
+                {latency}ms STT + LLM + Kokoro TTS
               </span>
             </div>
 
+            {/* Waveform Graph - Active strictly when speaking or thinking */}
             <AudioWaveform
-              active={true}
-              audioLevel={isThinking ? 20 : 65}
-              color={agent.color}
+              active={isSpeaking || isThinking}
+              audioLevel={isSpeaking ? 80 : isThinking ? 30 : 0}
+              color={agent.color || "#3157D5"}
               speaker="agent"
-              label={`${agent.voice.voiceName} (${agent.voice.provider})`}
+              label={isSpeaking ? `Speaking: ${agent.voice?.voiceName}` : isThinking ? "Synthesizing Speech Response..." : "Audio Stream (Idle)"}
             />
 
             {/* Quick suggested prompt chips */}
@@ -212,12 +327,12 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
                 "What is your pricing model?",
                 "Can you schedule a live product demo?",
                 "Are you SOC2 & HIPAA compliant?",
-                "Can you transfer me to an account rep?",
+                "Can you transfer me to a human specialist?",
               ].map((chip) => (
                 <button
                   key={chip}
                   onClick={() => handleSendMessage(chip)}
-                  className="text-xs bg-[#F4F7FB] hover:bg-[#EEF2FD] text-[#172033] hover:text-[#3157D5] px-2.5 py-1 rounded-lg border border-[#E5EAF2] transition-colors"
+                  className="text-xs bg-[#F4F7FB] dark:bg-[#1E293B] hover:bg-[#EEF2FD] dark:hover:bg-[#3157D5]/20 text-[#172033] dark:text-white hover:text-[#3157D5] px-2.5 py-1 rounded-lg border border-[#E5EAF2] dark:border-[#334155] transition-colors cursor-pointer"
                 >
                   &quot;{chip}&quot;
                 </button>
@@ -226,10 +341,10 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
           </div>
 
           {/* Interactive Chat Stream */}
-          <div className="p-5 bg-white rounded-2xl border border-[#E5EAF2] card-shadow flex flex-col justify-between min-h-[380px]">
+          <div className="p-5 bg-white dark:bg-[#0F172A] rounded-2xl border border-[#E5EAF2] dark:border-[#1E293B] card-shadow flex flex-col justify-between min-h-[400px]">
             <div
               ref={chatScrollRef}
-              className="space-y-4 max-h-80 overflow-y-auto pr-1 flex-1 mb-4 scrollbar-thin"
+              className="space-y-4 max-h-84 overflow-y-auto pr-1 flex-1 mb-4 scrollbar-thin"
             >
               {turns.map((turn) => {
                 const isAgent = turn.speaker === "agent";
@@ -240,7 +355,7 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
                   >
                     <div
                       className={`w-7 h-7 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 mt-0.5 ${
-                        isAgent ? "bg-[#3157D5]" : "bg-[#101A33]"
+                        isAgent ? "bg-[#3157D5]" : "bg-[#101A33] dark:bg-slate-700"
                       }`}
                     >
                       {isAgent ? <Bot className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
@@ -248,11 +363,11 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
 
                     <div className={`flex flex-col max-w-[80%] ${isAgent ? "items-start" : "items-end"}`}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-[11px] text-[#172033]">
-                          {isAgent ? agent.name : "Tester"}
+                        <span className="font-bold text-[11px] text-[#172033] dark:text-white">
+                          {isAgent ? agent.name : "Caller (You)"}
                         </span>
                         {turn.latencyMs && (
-                          <span className="text-[10px] text-[#3157D5] bg-[#EEF2FD] px-1.5 py-0.2 rounded font-mono font-medium">
+                          <span className="text-[10px] text-[#3157D5] bg-[#EEF2FD] dark:bg-[#3157D5]/20 px-1.5 py-0.2 rounded font-mono font-medium">
                             {turn.latencyMs}ms
                           </span>
                         )}
@@ -261,30 +376,30 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
                       <div
                         className={`p-3 rounded-2xl leading-relaxed ${
                           isAgent
-                            ? "bg-[#F4F7FB] text-[#172033] rounded-tl-xs border border-[#E5EAF2]"
+                            ? "bg-[#F4F7FB] dark:bg-[#1E293B] text-[#172033] dark:text-white rounded-tl-xs border border-[#E5EAF2] dark:border-[#334155]"
                             : "bg-[#3157D5] text-white rounded-tr-xs shadow-xs"
                         }`}
                       >
                         {turn.text}
                       </div>
 
-                      {/* Tool call telemetry pill */}
+                      {/* Tool call telemetry */}
                       {turn.toolCall && (
-                        <div className="mt-1.5 p-2 bg-[#EEF2FD] border border-[#3157D5]/20 rounded-xl text-[11px] text-[#101A33] flex items-center gap-2">
+                        <div className="mt-1.5 p-2 bg-[#EEF2FD] dark:bg-[#3157D5]/15 border border-[#3157D5]/20 rounded-xl text-[11px] text-[#101A33] dark:text-white flex items-center gap-2">
                           <Wrench className="w-3.5 h-3.5 text-[#3157D5]" />
                           <div>
-                            <span className="font-semibold text-[#3157D5]">Tool: {turn.toolCall.name}()</span>
-                            <p className="text-[10px] text-[#78849A]">{turn.toolCall.result}</p>
+                            <span className="font-semibold text-[#3157D5]">Tool Executed: {turn.toolCall.name}()</span>
+                            <p className="text-[10px] text-[#78849A] dark:text-[#94A3B8]">{turn.toolCall.result}</p>
                           </div>
                           <CheckCircle2 className="w-3.5 h-3.5 text-[#16A36A] ml-auto" />
                         </div>
                       )}
 
-                      {/* KB match pill */}
+                      {/* KB match telemetry */}
                       {turn.kbMatch && (
-                        <div className="mt-1.5 p-2 bg-[#E8F7F0] border border-[#16A36A]/20 rounded-xl text-[11px] text-[#172033] flex items-center gap-2">
+                        <div className="mt-1.5 p-2 bg-[#E8F7F0] dark:bg-[#16A36A]/15 border border-[#16A36A]/20 rounded-xl text-[11px] text-[#172033] dark:text-white flex items-center gap-2">
                           <BookOpen className="w-3.5 h-3.5 text-[#16A36A]" />
-                          <span>KB Matched: {turn.kbMatch.title} ({Math.round(turn.kbMatch.score * 100)}%)</span>
+                          <span>RAG Grounding: {turn.kbMatch.title} ({Math.round(turn.kbMatch.score * 100)}%)</span>
                         </div>
                       )}
                     </div>
@@ -293,25 +408,25 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
               })}
 
               {isThinking && (
-                <div className="flex items-center gap-2 text-xs text-[#78849A]">
-                  <div className="w-6 h-6 rounded-lg bg-[#EEF2FD] flex items-center justify-center text-[#3157D5]">
+                <div className="flex items-center gap-2 text-xs text-[#78849A] dark:text-[#94A3B8]">
+                  <div className="w-6 h-6 rounded-lg bg-[#EEF2FD] dark:bg-[#3157D5]/20 flex items-center justify-center text-[#3157D5]">
                     <Bot className="w-3.5 h-3.5 animate-spin" />
                   </div>
-                  <span className="italic">{agent.name} is speaking...</span>
+                  <span className="italic">{agent.name} is synthesizing speech...</span>
                 </div>
               )}
             </div>
 
             {/* Input Bar with Mic & Send */}
-            <div className="pt-3 border-t border-[#EDF2F7] flex items-center gap-2">
+            <div className="pt-3 border-t border-[#EDF2F7] dark:border-[#1E293B] flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleToggleMic}
                 title={isMicActive ? "Stop voice input" : "Speak to agent"}
-                className={`p-2.5 rounded-xl border transition-all ${
+                className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
                   isMicActive
                     ? "bg-[#D95C68] text-white border-[#D95C68] animate-pulse"
-                    : "bg-[#F4F7FB] text-[#78849A] hover:text-[#172033] border-[#E5EAF2]"
+                    : "bg-[#F4F7FB] dark:bg-[#1E293B] text-[#78849A] hover:text-[#172033] dark:hover:text-white border-[#E5EAF2] dark:border-[#334155]"
                 }`}
               >
                 {isMicActive ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
@@ -319,17 +434,17 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
 
               <input
                 type="text"
-                placeholder="Type your message to test voice agent response..."
+                placeholder="Type a message or press the microphone to test voice agent..."
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                className="flex-1 text-xs px-3.5 py-2.5 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl outline-none focus:border-[#3157D5]"
+                className="flex-1 text-xs px-3.5 py-2.5 bg-[#F4F7FB] dark:bg-[#1E293B] border border-[#E5EAF2] dark:border-[#334155] text-[#0F172A] dark:text-white rounded-xl outline-none focus:border-[#3157D5]"
               />
 
               <button
                 type="button"
                 onClick={() => handleSendMessage()}
-                className="px-4 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors"
+                className="px-4 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>Send</span>
@@ -340,40 +455,52 @@ export default function TestAgentPlayground({ params }: TestAgentPageProps) {
 
         {/* Right 1 col: Live Telemetry & Inspector */}
         <div className="space-y-4">
-          <div className="p-5 bg-white rounded-2xl border border-[#E5EAF2] card-shadow space-y-4">
-            <h3 className="text-xs font-bold text-[#172033] uppercase tracking-wider">
+          <div className="p-5 bg-white dark:bg-[#0F172A] rounded-2xl border border-[#E5EAF2] dark:border-[#1E293B] card-shadow space-y-4">
+            <h3 className="text-xs font-bold text-[#172033] dark:text-white uppercase tracking-wider">
               Speech Telemetry & Latency
             </h3>
 
             <div className="space-y-3 text-xs">
-              <div className="flex items-center justify-between p-2.5 bg-[#F4F7FB] rounded-xl">
-                <span className="text-[#78849A]">STT Transcriber</span>
-                <span className="font-bold text-[#172033]">Deepgram Nova-2 (95ms)</span>
+              <div className="flex items-center justify-between p-2.5 bg-[#F4F7FB] dark:bg-[#1E293B] rounded-xl">
+                <span className="text-[#78849A] dark:text-[#94A3B8]">STT Transcriber</span>
+                <span className="font-bold text-[#172033] dark:text-white">Parakeet-CTC (65ms)</span>
               </div>
-              <div className="flex items-center justify-between p-2.5 bg-[#F4F7FB] rounded-xl">
-                <span className="text-[#78849A]">LLM Engine</span>
-                <span className="font-bold text-[#172033]">Claude 3.5 Sonnet (115ms)</span>
+              <div className="flex items-center justify-between p-2.5 bg-[#F4F7FB] dark:bg-[#1E293B] rounded-xl">
+                <span className="text-[#78849A] dark:text-[#94A3B8]">LLM Reasoning</span>
+                <span className="font-bold text-[#172033] dark:text-white">{agent.llmModel || "GPT-4o Mini"} (110ms)</span>
               </div>
-              <div className="flex items-center justify-between p-2.5 bg-[#F4F7FB] rounded-xl">
-                <span className="text-[#78849A]">TTS Audio Stream</span>
-                <span className="font-bold text-[#172033]">{agent.voice.provider} (64ms)</span>
+              <div className="flex items-center justify-between p-2.5 bg-[#F4F7FB] dark:bg-[#1E293B] rounded-xl">
+                <span className="text-[#78849A] dark:text-[#94A3B8]">TTS Engine</span>
+                <span className="font-bold text-[#172033] dark:text-white">Kokoro-82M CUDA (38ms)</span>
               </div>
-              <div className="flex items-center justify-between p-2.5 bg-[#EEF2FD] rounded-xl border border-[#3157D5]/20">
+              <div className="flex items-center justify-between p-2.5 bg-[#EEF2FD] dark:bg-[#3157D5]/20 rounded-xl border border-[#3157D5]/20">
                 <span className="font-bold text-[#3157D5]">Roundtrip Latency</span>
                 <span className="font-bold text-[#3157D5]">{latency}ms Total</span>
               </div>
             </div>
           </div>
 
-          <div className="p-5 bg-white rounded-2xl border border-[#E5EAF2] card-shadow space-y-3">
-            <h3 className="text-xs font-bold text-[#172033] uppercase tracking-wider">
-              Active Knowledge Grounding
+          <div className="p-5 bg-white dark:bg-[#0F172A] rounded-2xl border border-[#E5EAF2] dark:border-[#1E293B] card-shadow space-y-3">
+            <h3 className="text-xs font-bold text-[#172033] dark:text-white uppercase tracking-wider">
+              Acoustic & Human Realism
             </h3>
-            <p className="text-xs text-[#78849A] leading-relaxed">
-              Grounding agent responses with <strong className="text-[#172033]">{agent.knowledgeBaseIds.length} attached collections</strong>.
-            </p>
-            <div className="p-3 bg-[#F4F7FB] rounded-xl border border-[#E5EAF2] text-[11px] text-[#78849A]">
-              Vector Search Threshold: <strong className="text-[#172033]">0.85 Cosine</strong>
+            <div className="p-3 bg-[#F4F7FB] dark:bg-[#1E293B] rounded-xl border border-[#E5EAF2] dark:border-[#334155] text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-[#78849A]">Micro-Breaths:</span>
+                <span className="font-bold text-[#16A36A]">Active</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#78849A]">Backchanneling:</span>
+                <span className="font-bold text-[#16A36A]">Enabled</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#78849A]">Adaptive Emotion:</span>
+                <span className="font-bold text-[#16A36A]">Calibrated</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#78849A]">Max Words/Turn:</span>
+                <span className="font-bold text-[#3157D5]">{agent.humanRealism?.maxWordsPerTurn || 25} words</span>
+              </div>
             </div>
           </div>
         </div>

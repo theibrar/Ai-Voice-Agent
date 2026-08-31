@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/lib/store";
+import { LanguageProvider } from "@/components/language-provider";
+import { AuthProvider } from "@/lib/auth-context";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,7 +32,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`h-full antialiased ${inter.variable} ${jetbrainsMono.variable}`}>
       <body className="min-h-full flex flex-col bg-[#FFFFFF] text-[#0F172A] font-sans">
-        <AppProvider>{children}</AppProvider>
+        <AuthProvider>
+          <AppProvider>
+            <LanguageProvider>{children}</LanguageProvider>
+          </AppProvider>
+        </AuthProvider>
       </body>
     </html>
   );

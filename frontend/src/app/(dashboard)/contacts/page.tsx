@@ -20,15 +20,25 @@ import {
   X,
   FileText,
   CheckCircle2,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
 } from "lucide-react";
+import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
 
 export default function ContactsPage() {
-  const { contacts, addContact, updateContactNotes, addToast } = useAppStore();
+  const { contacts, addContact, deleteContact, updateContactNotes, addToast } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [deleteModalContact, setDeleteModalContact] = useState<any | null>(null);
+
+  // Pagination & Leads Per Page State
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Add Contact Form State
   const [name, setName] = useState("");
@@ -49,6 +59,14 @@ export default function ContactsPage() {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination calculation
+  const totalLeads = filteredContacts.length;
+  const totalPages = Math.max(1, Math.ceil(totalLeads / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (validCurrentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalLeads);
+  const paginatedContacts = filteredContacts.slice(startIndex, endIndex);
 
   const handleCreateContact = () => {
     if (!name.trim() || !phone.trim()) return;
@@ -109,22 +127,49 @@ export default function ContactsPage() {
 
       {/* Filter and Search Bar */}
       <div className="p-4 bg-white rounded-2xl border border-[#E5EAF2] card-shadow flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-[#78849A] absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search leads by name, email, phone, company..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-2 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs text-[#172033] placeholder-[#78849A] outline-none focus:border-[#3157D5]"
-          />
+        <div className="flex flex-1 items-center gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:w-80 md:flex-initial">
+            <Search className="w-4 h-4 text-[#78849A] absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Search leads by name, email, phone, company..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-3.5 py-2 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs text-[#172033] placeholder-[#78849A] outline-none focus:border-[#3157D5]"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs text-[#78849A] shrink-0 bg-[#F4F7FB] px-3 py-2 rounded-xl border border-[#E5EAF2]">
+            <span>Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-transparent font-bold text-[#172033] outline-none cursor-pointer"
+            >
+              <option value={3}>3 per page</option>
+              <option value={5}>5 per page</option>
+              <option value={10}>10 per page</option>
+              <option value={25}>25 per page</option>
+              <option value={50}>50 per page</option>
+              <option value={100}>100 per page</option>
+            </select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-[#F4F7FB] p-1 rounded-xl border border-[#E5EAF2] overflow-x-auto">
+        <div className="flex items-center gap-1 bg-[#F4F7FB] p-1 rounded-xl border border-[#E5EAF2] overflow-x-auto w-full md:w-auto">
           {["all", "new", "qualified", "appointment_set", "contacted", "do_not_call"].map((st) => (
             <button
               key={st}
-              onClick={() => setStatusFilter(st)}
+              onClick={() => {
+                setStatusFilter(st);
+                setCurrentPage(1);
+              }}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap capitalize ${
                 statusFilter === st
                   ? "bg-white text-[#3157D5] shadow-2xs"
@@ -153,8 +198,8 @@ export default function ContactsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EAF2]">
-              {filteredContacts.length > 0 ? (
-                filteredContacts.map((contact) => (
+              {paginatedContacts.length > 0 ? (
+                paginatedContacts.map((contact) => (
                   <tr
                     key={contact.id}
                     onClick={() => setSelectedContact(contact)}
@@ -182,15 +227,25 @@ export default function ContactsPage() {
                     <td className="p-4 text-[#78849A]">
                       {contact.lastCallOutcome || "Not Called Yet"}
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="p-4 text-right space-x-1.5">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedContact(contact);
                         }}
-                        className="px-2.5 py-1 text-xs font-semibold bg-[#EEF2FD] text-[#3157D5] rounded-lg hover:bg-[#E0E7FB]"
+                        className="px-2.5 py-1 text-xs font-semibold bg-[#EEF2FD] text-[#3157D5] rounded-lg hover:bg-[#E0E7FB] cursor-pointer"
                       >
                         View Dossier
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteModalContact(contact);
+                        }}
+                        title="Delete Lead"
+                        className="p-1 text-[#94A3B8] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </td>
                   </tr>
@@ -204,6 +259,78 @@ export default function ContactsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination & Rows-per-page Footer */}
+        <div className="p-4 border-t border-[#E5EAF2] bg-[#F4F7FB]/40 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
+          <div className="flex flex-wrap items-center gap-3 text-[#78849A]">
+            <span>
+              {totalLeads > 0 ? (
+                <>
+                  Showing <strong className="text-[#172033] font-semibold">{startIndex + 1}</strong> to{" "}
+                  <strong className="text-[#172033] font-semibold">{endIndex}</strong> of{" "}
+                  <strong className="text-[#172033] font-semibold">{totalLeads}</strong> leads
+                </>
+              ) : (
+                "0 leads found"
+              )}
+            </span>
+
+            <div className="flex items-center gap-1.5 pl-3 border-l border-[#E5EAF2]">
+              <span className="text-[#78849A]">Leads per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 bg-white border border-[#E5EAF2] rounded-lg text-xs font-semibold text-[#172033] outline-none focus:border-[#3157D5] cursor-pointer"
+              >
+                <option value={3}>3</option>
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={validCurrentPage === 1}
+                className="p-1.5 rounded-lg border border-[#E5EAF2] bg-white text-[#78849A] hover:text-[#172033] hover:border-[#CBD5E1] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Previous Page"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                    validCurrentPage === pageNum
+                      ? "bg-[#3157D5] text-white shadow-2xs"
+                      : "bg-white border border-[#E5EAF2] text-[#78849A] hover:text-[#172033] hover:border-[#CBD5E1]"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={validCurrentPage === totalPages}
+                className="p-1.5 rounded-lg border border-[#E5EAF2] bg-white text-[#78849A] hover:text-[#172033] hover:border-[#CBD5E1] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Next Page"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -339,7 +466,7 @@ export default function ContactsPage() {
               </button>
               <button
                 onClick={handleCreateContact}
-                className="px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-semibold rounded-xl shadow-xs"
+                className="px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-semibold rounded-xl shadow-xs cursor-pointer"
               >
                 Save Contact
               </button>
@@ -347,6 +474,22 @@ export default function ContactsPage() {
           </div>
         </div>
       )}
+
+      {/* Professional Delete Confirmation Dialog */}
+      <ConfirmDeleteModal
+        isOpen={!!deleteModalContact}
+        onClose={() => setDeleteModalContact(null)}
+        onConfirm={async () => {
+          if (deleteModalContact) {
+            await deleteContact(deleteModalContact.id);
+            if (selectedContact?.id === deleteModalContact.id) {
+              setSelectedContact(null);
+            }
+          }
+        }}
+        itemName={deleteModalContact ? `${deleteModalContact.name} (${deleteModalContact.phone})` : undefined}
+        itemType="Contact Lead"
+      />
     </div>
   );
 }

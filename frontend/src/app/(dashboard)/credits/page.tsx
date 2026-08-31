@@ -1,55 +1,140 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/page-header";
 import {
   Coins,
   Plus,
   CreditCard,
-  Zap,
-  CheckCircle2,
   Download,
-  ShieldCheck,
-  Clock,
-  Sparkles,
+  Loader2,
   X,
 } from "lucide-react";
 
+interface BillingInvoiceItem {
+  id: string;
+  invoiceNumber: string;
+  date: string;
+  description: string;
+  amount: string;
+  numericAmount: number;
+  status: string;
+  transactionType: string;
+  receiptUrl: string;
+}
+
+interface BillingDetailsData {
+  tenantId: number;
+  tenantName: string;
+  creditsBalance: number;
+  planId: string;
+  planName: string;
+  billingCycle: string;
+  creditRatePerMinute: number;
+  maxConcurrency: number;
+  mrr: number;
+  invoices: BillingInvoiceItem[];
+}
+
 export default function CreditsPage() {
-  const { activeWorkspace, addToast } = useAppStore();
+  const { activeWorkspace, setActiveWorkspace, addToast } = useAppStore();
+  const { tenant, user, refreshAuth } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [billingData, setBillingData] = useState<BillingDetailsData>({
+    tenantId: tenant?.id || 5,
+    tenantName: tenant?.tenantName || "My Organization",
+    creditsBalance: tenant?.creditsBalance || 250.00,
+    planId: "plan-growth",
+    planName: "Growth Fleet",
+    billingCycle: "monthly",
+    creditRatePerMinute: 0.08,
+    maxConcurrency: 40,
+    mrr: 599.00,
+    invoices: [],
+  });
 
   const [showTopUpModal, setShowTopUpModal] = useState(false);
   const [selectedTopUpAmount, setSelectedTopUpAmount] = useState(500);
   const [autoRechargeEnabled, setAutoRechargeEnabled] = useState(true);
+  const [isProcessingTopUp, setIsProcessingTopUp] = useState(false);
 
-  const transactions = [
-    { id: "TX-9912", date: "2026-08-20", description: "Credit Auto-Recharge (Visa •••• 4289)", amount: "+$500.00", status: "completed" },
-    { id: "TX-9840", date: "2026-08-15", description: "Monthly Dedicated Concurrency (50 Ports)", amount: "-$125.00", status: "completed" },
-    { id: "TX-9721", date: "2026-08-01", description: "Tier 3 Volume Credit Purchase", amount: "+$1,000.00", status: "completed" },
-    { id: "TX-9604", date: "2026-07-20", description: "Enterprise Support Add-on SLA", amount: "-$250.00", status: "completed" },
-  ];
+  const fetchBillingDetails = useCallback(async () => {
+    try {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1") + "/billing/details";
+      const res = await fetch(apiUrl, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data: BillingDetailsData = await res.json();
+        setBillingData(data);
+
+        // Synchronize AppStore activeWorkspace balance and plan name
+        setActiveWorkspace({
+          ...activeWorkspace,
+          name: data.tenantName || activeWorkspace.name,
+          plan: (data.planName || activeWorkspace.plan) as any,
+          credits: data.creditsBalance,
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to fetch billing details:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeWorkspace, setActiveWorkspace]);
+
+  useEffect(() => {
+    fetchBillingDetails();
+  }, [fetchBillingDetails]);
 
   const handleTopUp = async () => {
-    const newTotal = activeWorkspace.credits + selectedTopUpAmount;
-    activeWorkspace.credits = newTotal;
+    setIsProcessingTopUp(true);
     try {
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + '/superadmin/tenants/credits';
-      await fetch(apiUrl, {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1") + "/billing/top-up";
+      const res = await fetch(apiUrl, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenant_id: 1, amount: newTotal }),
+        body: JSON.stringify({ amount: selectedTopUpAmount }),
       });
+
+      if (res.ok) {
+        const json = await res.json();
+        await fetchBillingDetails();
+        await refreshAuth();
+        setShowTopUpModal(false);
+        addToast({
+          title: "Voice Credits Added",
+          description: `Added $${selectedTopUpAmount}.00 to voice balance. New balance: $${json.creditsBalance?.toFixed(2) || (billingData.creditsBalance + selectedTopUpAmount).toFixed(2)}.`,
+          type: "success",
+        });
+      } else {
+        addToast({
+          title: "Top-up Failed",
+          description: "Unable to process credit purchase.",
+          type: "error",
+        });
+      }
     } catch (err) {
-      console.warn("Database API credit sync:", err);
+      console.warn("Database API credit sync error:", err);
+      addToast({
+        title: "Connection Error",
+        description: "Failed to connect to billing server.",
+        type: "error",
+      });
+    } finally {
+      setIsProcessingTopUp(false);
     }
-    setShowTopUpModal(false);
-    addToast({
-      title: "Funds Added & Persisted to DB",
-      description: `Added $${selectedTopUpAmount}.00 to voice balance. Total: $${newTotal.toFixed(2)}.`,
-      type: "success",
-    });
   };
+
+  const rate = billingData.creditRatePerMinute || 0.08;
+  const currentBalance = billingData.creditsBalance !== undefined ? billingData.creditsBalance : activeWorkspace.credits;
+  const availableMinutes = Math.round(currentBalance / rate);
 
   return (
     <div className="space-y-6">
@@ -79,15 +164,15 @@ export default function CreditsPage() {
               </div>
             </div>
             <div className="text-3xl font-extrabold mt-2 tracking-tight">
-              ${activeWorkspace.credits.toFixed(2)}
+              ${currentBalance.toFixed(2)}
             </div>
             <span className="text-xs text-[#16A36A] font-semibold mt-1 block">
-              ~{Math.round(activeWorkspace.credits / 0.08).toLocaleString()} Call Minutes Available
+              ~{availableMinutes.toLocaleString()} Call Minutes Available
             </span>
           </div>
 
           <div className="pt-3 border-t border-[#20325D] flex justify-between items-center text-xs">
-            <span className="text-[#94A3B8]">Rate: $0.08 / min</span>
+            <span className="text-[#94A3B8]">Rate: ${rate.toFixed(2)} / min</span>
             <button
               onClick={() => setShowTopUpModal(true)}
               className="text-[#5C82FF] font-bold hover:underline"
@@ -102,17 +187,21 @@ export default function CreditsPage() {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-[#78849A] uppercase tracking-wider">Subscription Tier</span>
-              <span className="text-xs font-bold text-[#3157D5] bg-[#EEF2FD] px-2.5 py-0.5 rounded-full">
-                {activeWorkspace.plan}
+              <span className="text-xs font-bold text-[#3157D5] bg-[#EEF2FD] px-2.5 py-0.5 rounded-full capitalize">
+                {billingData.billingCycle.replace("_", " ")}
               </span>
             </div>
-            <h3 className="text-xl font-bold text-[#172033] mt-2">Enterprise Dedicated</h3>
-            <p className="text-xs text-[#78849A] mt-1">Up to 500 concurrent SIP lines, 99.99% SLA, and dedicated Slack support.</p>
+            <h3 className="text-xl font-bold text-[#172033] mt-2">{billingData.planName}</h3>
+            <p className="text-xs text-[#78849A] mt-1">
+              Up to {billingData.maxConcurrency} concurrent SIP lines, ${rate}/min rate, and automated call routing.
+            </p>
           </div>
 
           <div className="pt-3 border-t border-[#EDF2F7] flex justify-between items-center text-xs text-[#78849A]">
-            <span>Renews Sep 01, 2026</span>
-            <span className="font-semibold text-[#172033]">$499 / mo</span>
+            <span>Renews Next Cycle</span>
+            <span className="font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full text-[11px]">
+              Active
+            </span>
           </div>
         </div>
 
@@ -151,7 +240,12 @@ export default function CreditsPage() {
       {/* Transaction History Ledger */}
       <div className="bg-white rounded-2xl border border-[#E5EAF2] card-shadow overflow-hidden">
         <div className="p-4 border-b border-[#E5EAF2] flex items-center justify-between">
-          <h3 className="text-sm font-bold text-[#172033]">Recent Invoices & Transactions</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-[#172033]">Recent Invoices & Transactions</h3>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#EEF2FD] text-[#3157D5]">
+              {billingData.invoices.length} Records
+            </span>
+          </div>
           <span className="text-xs text-[#78849A]">All amounts in USD</span>
         </div>
 
@@ -168,24 +262,33 @@ export default function CreditsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EAF2]">
-              {activeWorkspace.credits > 0 ? (
-                transactions.map((tx) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-[#64748B] text-xs">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#3157D5]" />
+                      <span>Loading transactions from PostgreSQL...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : billingData.invoices.length > 0 ? (
+                billingData.invoices.map((tx) => (
                   <tr key={tx.id} className="hover:bg-[#F4F7FB]/60 transition-colors">
-                    <td className="p-4 font-mono font-bold text-[#172033]">{tx.id}</td>
-                    <td className="p-4 text-[#78849A]">{tx.date}</td>
+                    <td className="p-4 font-mono font-bold text-[#172033]">{tx.invoiceNumber || tx.id}</td>
+                    <td className="p-4 text-[#78849A] whitespace-nowrap">{tx.date}</td>
                     <td className="p-4 font-medium text-[#172033]">{tx.description}</td>
-                    <td className={`p-4 font-mono font-bold ${tx.amount.startsWith("+") ? "text-[#16A36A]" : "text-[#172033]"}`}>
+                    <td className={`p-4 font-mono font-bold whitespace-nowrap ${tx.amount.startsWith("+") ? "text-[#16A36A]" : "text-[#172033]"}`}>
                       {tx.amount}
                     </td>
                     <td className="p-4">
-                      <span className="px-2 py-0.5 bg-[#E8F7F0] text-[#16A36A] rounded-full text-[10px] font-bold">
-                        Paid
+                      <span className="px-2 py-0.5 bg-[#E8F7F0] text-[#16A36A] rounded-full text-[10px] font-bold capitalize">
+                        {tx.status || "Paid"}
                       </span>
                     </td>
                     <td className="p-4 text-right">
                       <button
                         onClick={() => {
-                          addToast({ title: "Invoice Downloaded", description: `Saved ${tx.id}.pdf`, type: "success" });
+                          addToast({ title: "Invoice Downloaded", description: `Saved ${tx.invoiceNumber || tx.id}.pdf`, type: "success" });
                         }}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-[#3157D5] hover:underline"
                       >
@@ -253,10 +356,12 @@ export default function CreditsPage() {
                 Cancel
               </button>
               <button
+                disabled={isProcessingTopUp}
                 onClick={handleTopUp}
-                className="px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-semibold rounded-xl shadow-xs"
+                className="px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-semibold rounded-xl shadow-xs disabled:opacity-50 flex items-center gap-1.5"
               >
-                Charge ${selectedTopUpAmount}.00
+                {isProcessingTopUp && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Charge ${selectedTopUpAmount}.00</span>
               </button>
             </div>
           </div>

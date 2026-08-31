@@ -19,6 +19,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -31,6 +32,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const { addToast } = useAppStore();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -42,38 +44,43 @@ export default function LoginPage() {
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "alex@apexvoice.ai",
-      password: "password123",
-      rememberMe: true,
+      email: "",
+      password: "",
+      rememberMe: false,
     },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      addToast({
-        title: "Welcome Back!",
-        description: `Signed in as ${data.email} to Apex Enterprise.`,
-        type: "success",
-      });
-      router.push("/dashboard");
-    }, 800);
-  };
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  const handleDemoAccess = () => {
+  const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
-    setValue("email", "demo.executive@apexvoice.ai");
-    setValue("password", "enterprise2026");
-    setTimeout(() => {
-      setIsLoading(false);
+    setAuthError(null);
+
+    const res = await login(data.email, data.password);
+    setIsLoading(false);
+
+    if (!res.success) {
+      const errMsg = res.error || "Invalid email or password. Please check your credentials.";
+      setAuthError(errMsg);
       addToast({
-        title: "Demo Workspace Loaded",
-        description: "Viewing live telemetry with simulated active calls and agents.",
-        type: "success",
+        title: "Authentication Failed",
+        description: errMsg,
+        type: "warning",
       });
+      return;
+    }
+
+    addToast({
+      title: "Welcome Back!",
+      description: `Signed in successfully. Opening dashboard...`,
+      type: "success",
+    });
+
+    if (res.isSuperAdmin) {
+      router.push("/super-admin");
+    } else {
       router.push("/dashboard");
-    }, 600);
+    }
   };
 
   return (
@@ -108,34 +115,16 @@ export default function LoginPage() {
               Sign in to Voice OS
             </h1>
             <p className="text-sm text-[#78849A] mt-2 leading-relaxed">
-              Manage your AI voice agents, live calls, campaigns, and conversational flows.
+              Enter your authorized organization email and security password to access your dashboard.
             </p>
           </div>
 
-          {/* 1-Click Demo Workspace Button */}
-          <button
-            type="button"
-            onClick={handleDemoAccess}
-            disabled={isLoading}
-            className="w-full mb-6 p-3.5 bg-[#EEF2FD] hover:bg-[#E0E7FB] border border-[#3157D5]/30 rounded-xl text-xs font-semibold text-[#3157D5] flex items-center justify-between transition-all group"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-[#3157D5] text-white flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5" />
-              </div>
-              <div className="text-left">
-                <p className="font-bold text-[#3157D5]">Instant Demo Access</p>
-                <p className="text-[10px] text-[#78849A]">Pre-loaded with 6 AI agents, active calls & live telemetry</p>
-              </div>
+          {authError && (
+            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+              <span>{authError}</span>
             </div>
-            <ArrowRight className="w-4 h-4 text-[#3157D5] group-hover:translate-x-1 transition-transform" />
-          </button>
-
-          <div className="flex items-center gap-3 my-6">
-            <div className="flex-1 h-px bg-[#E5EAF2]" />
-            <span className="text-[11px] font-semibold text-[#78849A] uppercase tracking-wider">or sign in with credentials</span>
-            <div className="flex-1 h-px bg-[#E5EAF2]" />
-          </div>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Email Field */}

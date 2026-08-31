@@ -39,11 +39,15 @@ export default function CallHistoryPage() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [currentTimeSec, setCurrentTimeSec] = useState(32);
 
-  const filteredCalls = calls.filter((call) => {
+  const filteredCalls = (calls || []).filter((call) => {
+    const callerName = call?.callerName || call?.contactName || "";
+    const callerNumber = call?.callerNumber || call?.contactPhone || "";
+    const agentName = call?.agentName || "";
+
     const matchesSearch =
-      call.callerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      call.callerNumber.includes(searchQuery) ||
-      call.agentName.toLowerCase().includes(searchQuery.toLowerCase());
+      callerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      callerNumber.includes(searchQuery) ||
+      agentName.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesDirection =
       directionFilter === "all" ? true : call.direction === directionFilter;

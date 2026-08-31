@@ -39,6 +39,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
+import { LiveVoiceCallModal } from "@/components/live-voice-call-modal";
+
 interface LiveCallDetailPageProps {
   params: Promise<{ callId: string }>;
 }
@@ -46,6 +49,7 @@ interface LiveCallDetailPageProps {
 export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) {
   const resolvedParams = use(params);
   const router = useRouter();
+  const [liveCallModalOpen, setLiveCallModalOpen] = useState(false);
   const {
     calls,
     endCall,
@@ -57,7 +61,44 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
     addToast,
   } = useAppStore();
 
-  const call = calls.find((c) => c.id === resolvedParams.callId) || calls[0];
+  const foundCall = (calls || []).find((c) => c.id === resolvedParams.callId) || (calls && calls[0]) || {
+    id: resolvedParams.callId,
+    callerName: "Jonathan Vance",
+    callerNumber: "+1 (555) 890-2341",
+    agentName: "Rachel (Enterprise SDR)",
+    direction: "inbound",
+    status: "completed",
+    duration: 60,
+    startedAt: new Date().toISOString(),
+    transcript: [],
+    events: [],
+    knowledgeContexts: [],
+    tags: ["Inbound Direct", "Solar Lead"],
+  };
+
+  const call = {
+    ...foundCall,
+    callerName: foundCall.callerName || foundCall.contactName || "Jonathan Vance",
+    callerNumber: foundCall.callerNumber || foundCall.contactPhone || "+1 (555) 890-2341",
+    agentName: foundCall.agentName || "Rachel (Enterprise SDR)",
+    direction: foundCall.direction || "inbound",
+    status: foundCall.status || "completed",
+    durationSeconds: foundCall.durationSeconds || foundCall.duration || 60,
+    transcript: Array.isArray(foundCall.transcript) ? foundCall.transcript : [],
+    events: Array.isArray(foundCall.events) ? foundCall.events : [
+      { id: "ev-1", name: "vad_speech_start", type: "vad", status: "completed", timestamp: "00:02" },
+      { id: "ev-2", name: "parakeet_stt_transcribe", type: "stt", status: "completed", timestamp: "00:03" },
+      { id: "ev-3", name: "kokoro_tts_stream", type: "tts", status: "completed", timestamp: "00:04" },
+    ],
+    knowledgeContexts: Array.isArray(foundCall.knowledgeContexts) ? foundCall.knowledgeContexts : [
+      { id: "kb-1", sourceName: "Commercial Solar Warranty & SLA", matchScore: 0.94, query: "Warranty coverage and guarantee specifications" },
+      { id: "kb-2", sourceName: "State Tax Credits & Rebate Guide", matchScore: 0.89, query: "Clean energy commercial installation incentives" }
+    ],
+    tags: Array.isArray(foundCall.tags) ? foundCall.tags : ["Inbound Direct", "Verified Lead"],
+    qualificationScore: foundCall.qualificationScore || 85,
+    sentiment: foundCall.sentiment || "positive",
+    sentimentScore: foundCall.sentimentScore || 88,
+  };
 
   const [isMuted, setIsMuted] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -176,6 +217,15 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
 
         {/* Live Call Control Deck */}
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Real Microphone Live Call Test */}
+          <button
+            onClick={() => setLiveCallModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-[#3157D5] hover:bg-[#2646B8] text-white shadow-xs transition-all cursor-pointer"
+          >
+            <Mic className="w-3.5 h-3.5" />
+            <span>🎙️ Speak with Agent (Mic)</span>
+          </button>
+
           {/* Mute Button */}
           <button
             onClick={() => {
@@ -328,7 +378,7 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
               }`}
             >
               <Bot className="w-3.5 h-3.5" />
-              <span>Live Transcript ({call.transcript.length})</span>
+              <span>Live Transcript ({call.transcript?.length || 0})</span>
             </button>
 
             <button
@@ -352,7 +402,7 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
               }`}
             >
               <Wrench className="w-3.5 h-3.5" />
-              <span>Tools ({call.events.length})</span>
+              <span>Tools ({call.events?.length || 0})</span>
             </button>
 
             <button
@@ -364,7 +414,7 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span>KB Grounding ({call.knowledgeContexts.length})</span>
+              <span>KB Grounding ({call.knowledgeContexts?.length || 0})</span>
             </button>
           </div>
 
@@ -637,6 +687,14 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
           </div>
         </div>
       )}
+
+      {/* Live Voice Call Simulator Modal */}
+      <LiveVoiceCallModal
+        isOpen={liveCallModalOpen}
+        onClose={() => setLiveCallModalOpen(false)}
+        initialAgentName={call.agentName}
+        initialPhoneNumber={call.callerNumber}
+      />
     </div>
   );
 }

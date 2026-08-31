@@ -18,11 +18,18 @@ import {
   Trash2,
   ExternalLink,
 } from "lucide-react";
+import { translate } from "@/lib/languages";
+import { LanguageSelector } from "./language-selector";
+import { useAuth } from "@/lib/auth-context";
 
 export function Topbar() {
+  const { user, tenant, logout } = useAuth();
   const {
+    activeWorkspace,
     theme,
     toggleTheme,
+    language,
+    setLanguage,
     notifications,
     unreadNotificationCount,
     markAllNotificationsAsRead,
@@ -32,6 +39,13 @@ export function Topbar() {
     activeCallCount,
     addToast,
   } = useAppStore();
+
+  const userInitials = (user?.name || "Admin")
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .substring(0, 2) || "AD";
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -50,14 +64,15 @@ export function Topbar() {
         {/* Global Search Button */}
         <button
           onClick={() => setCommandPaletteOpen(true)}
-          className="flex items-center gap-2.5 px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs text-white transition-all group w-64 md:w-80 shadow-2xs"
+          className="flex items-center gap-2.5 px-3.5 py-2 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs text-white transition-all group w-64 md:w-84 shadow-2xs cursor-pointer"
         >
           <Search className="w-4 h-4 text-white/80 shrink-0 group-hover:text-white" />
-          <span className="font-normal text-white/90 truncate">Search agents, calls, contacts...</span>
+          <span className="font-medium text-white/90 truncate">{translate("search_placeholder", language)}</span>
+          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-white/20 text-white rounded ml-auto">⌘K</kbd>
         </button>
       </div>
 
-      {/* Right side: Theme Switcher, Notifications & Profile */}
+      {/* Right side: Language Selector, Theme Switcher, Notifications & Profile */}
       <div className="flex items-center gap-2 md:gap-3">
         {/* Live Call Quick Badge */}
         {activeCallCount > 0 && (
@@ -71,10 +86,13 @@ export function Topbar() {
           </Link>
         )}
 
+        {/* 20 Basic Languages Selector */}
+        <LanguageSelector currentLanguage={language} onLanguageChange={setLanguage} />
+
         {/* Dark / Light Theme Toggle Button */}
         <button
           onClick={toggleTheme}
-          className="p-2 text-white/90 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
+          className="p-2 text-white/90 hover:text-white hover:bg-white/15 rounded-xl transition-colors cursor-pointer"
           title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
         >
           {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
@@ -84,7 +102,7 @@ export function Topbar() {
         <div className="relative">
           <button
             onClick={() => setNotificationsOpen((prev) => !prev)}
-            className="relative p-2 text-white/90 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
+            className="relative p-2 text-white/90 hover:text-white hover:bg-white/15 rounded-xl transition-colors cursor-pointer"
             title="Notifications"
           >
             <Bell className="w-4 h-4" />
@@ -166,10 +184,10 @@ export function Topbar() {
         <div className="relative">
           <button
             onClick={() => setUserMenuOpen((prev) => !prev)}
-            className="flex items-center gap-2 p-1 rounded-xl hover:bg-white/15 transition-colors focus:outline-hidden"
+            className="flex items-center gap-2 p-1 rounded-xl hover:bg-white/15 transition-colors focus:outline-hidden cursor-pointer"
           >
             <div className="w-8 h-8 rounded-full bg-[#3157D5] text-white flex items-center justify-center font-bold text-xs shadow-xs border-2 border-white/30">
-              AD
+              {userInitials}
             </div>
           </button>
 
@@ -178,10 +196,10 @@ export function Topbar() {
               <div className="fixed inset-0 z-40" onClick={() => setUserMenuOpen(false)} />
               <div className="absolute right-0 top-full mt-2 w-56 bg-white text-[#0F172A] rounded-2xl shadow-2xl border border-[#E2E8F0] py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-4 py-2 border-b border-[#E2E8F0]">
-                  <p className="text-xs font-bold text-[#0F172A]">Alex DeVries</p>
-                  <p className="text-[11px] text-[#64748B]">alex@apexvoice.ai</p>
-                  <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-[#EEF2FD] text-[#3157D5] rounded-md">
-                    Enterprise Workspace
+                  <p className="text-xs font-bold text-[#0F172A]">{user?.name || "Admin"}</p>
+                  <p className="text-[11px] text-[#64748B]">{user?.email || "admin@apexvoice.ai"}</p>
+                  <span className="inline-block mt-1 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-[#EEF2FD] text-[#3157D5] rounded-md truncate max-w-full">
+                    {tenant?.tenantName || user?.company || activeWorkspace.name}
                   </span>
                 </div>
 
@@ -194,25 +212,19 @@ export function Topbar() {
                     <Settings className="w-3.5 h-3.5 text-[#3157D5]" />
                     <span>Workspace Settings</span>
                   </Link>
-                  <Link
-                    href="/super-admin"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-[#0F172A] hover:bg-[#EEF2FD]"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#3157D5]" />
-                    <span>Super Admin Console</span>
-                  </Link>
                 </div>
 
                 <div className="border-t border-[#E2E8F0] pt-1">
-                  <Link
-                    href="/login"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2 text-xs text-[#0F172A] hover:bg-[#EEF2FD] font-semibold"
+                  <button
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logout();
+                    }}
+                    className="w-full text-left flex items-center gap-2.5 px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 font-semibold cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Sign Out</span>
-                  </Link>
+                  </button>
                 </div>
               </div>
             </>

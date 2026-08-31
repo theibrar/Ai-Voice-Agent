@@ -21,9 +21,13 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+import { LanguageSelector } from "@/components/language-selector";
+
 export function SuperAdminTopbar() {
   const router = useRouter();
   const {
+    language,
+    setLanguage,
     superAdminTheme,
     toggleSuperAdminTheme,
     superAdminNotifications,
@@ -61,7 +65,7 @@ export function SuperAdminTopbar() {
         </form>
       </div>
 
-      {/* Right side: Global System Health, Theme Switcher, Notifications & Super Admin Menu */}
+      {/* Right side: Global System Health, Language Selector, Theme Switcher, Notifications & Super Admin Menu */}
       <div className="flex items-center gap-2 md:gap-3">
         {/* Global Infrastructure Health Pill */}
         <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-white/15 border border-white/20 rounded-xl text-xs font-semibold text-white">
@@ -73,7 +77,7 @@ export function SuperAdminTopbar() {
         <div className="relative">
           <button
             onClick={() => setTenantSwitcherOpen((prev) => !prev)}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white text-[#3157D5] rounded-xl text-xs font-bold shadow-xs hover:bg-white/95 transition-colors"
+            className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white text-[#3157D5] rounded-xl text-xs font-bold shadow-xs hover:bg-white/95 transition-colors cursor-pointer"
           >
             <Building2 className="w-3.5 h-3.5 text-[#3157D5]" />
             <span>Select Tenant Org</span>
@@ -101,12 +105,15 @@ export function SuperAdminTopbar() {
                         });
                         router.push(`/super-admin/admins?selected=${t.id}`);
                       }}
-                      className="w-full flex items-center justify-between px-3 py-2 text-xs hover:bg-[#EEF2FD] rounded-xl text-[#0F172A] transition-colors text-left"
+                      className="w-full flex items-center justify-between p-2 rounded-xl text-xs text-[#0F172A] hover:bg-[#EEF2FD] transition-colors text-left"
                     >
                       <div>
-                        <p className="font-bold text-[#0F172A] truncate max-w-[170px]">{t.orgName}</p>
-                        <p className="text-[10px] text-[#64748B]">{t.planName} • ${t.creditsBalance.toFixed(2)}</p>
+                        <p className="font-bold text-[#0F172A]">{t.orgName}</p>
+                        <p className="text-[10px] text-[#64748B]">{t.planName} • {t.creditsBalance.toFixed(2)}</p>
                       </div>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                        Active
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -115,10 +122,13 @@ export function SuperAdminTopbar() {
           )}
         </div>
 
+        {/* 20 Basic Languages Selector */}
+        <LanguageSelector currentLanguage={language} onLanguageChange={setLanguage} />
+
         {/* Dark / Light Theme Toggle Button */}
         <button
           onClick={toggleSuperAdminTheme}
-          className="p-2 text-white/90 hover:text-white hover:bg-white/15 rounded-xl transition-colors"
+          className="p-2 text-white/90 hover:text-white hover:bg-white/15 rounded-xl transition-colors cursor-pointer"
           title={superAdminTheme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
         >
           {superAdminTheme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}

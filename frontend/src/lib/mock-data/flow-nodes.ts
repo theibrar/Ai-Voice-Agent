@@ -69,10 +69,23 @@ export const initialFlowNodes: FlowNode[] = [
   },
   {
     id: "node-7",
-    type: "end_call",
-    title: "7. Graceful Hangup",
-    description: "Plays closing thank you message and logs call outcome.",
+    type: "send_email",
+    title: "7. Follow-up Briefing Email",
+    description: "Dispatches automated calendar invite and solution overview PDF.",
     position: { x: 1780, y: 140 },
+    data: {
+      emailSubject: "Apex Voice AI - Demo Consultation & Overview",
+      emailRecipient: "{{contact.email}}",
+      emailTemplate: "Hi {{contact.name}},\n\nThank you for speaking with our voice assistant. Your demo is reserved. Meeting link and materials attached.",
+      emailGateway: "smtp",
+    },
+  },
+  {
+    id: "node-8",
+    type: "end_call",
+    title: "8. Graceful Hangup",
+    description: "Plays closing thank you message and logs call outcome.",
+    position: { x: 2120, y: 140 },
     data: {
       prompt: "Thank you for choosing Apex. We look forward to speaking soon. Have a great day!",
     },
@@ -87,4 +100,6 @@ export const initialFlowEdges: FlowEdge[] = [
   { id: "e4-5", source: "node-4", target: "node-5" },
   { id: "e5-6", source: "node-5", target: "node-6" },
   { id: "e6-7", source: "node-6", target: "node-7" },
+  { id: "e7-8", source: "node-7", target: "node-8" },
 ];
+

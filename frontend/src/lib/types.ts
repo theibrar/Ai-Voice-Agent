@@ -1,7 +1,7 @@
 export type AgentStatus = "active" | "paused" | "draft";
 
 export interface VoiceConfig {
-  provider: "ElevenLabs" | "Cartesia" | "Deepgram" | "PlayHT" | "OpenAI";
+  provider: "ElevenLabs" | "Cartesia" | "Deepgram" | "PlayHT" | "OpenAI" | "Kokoro Neural" | "Parakeet";
   voiceId: string;
   voiceName: string;
   gender: "female" | "male" | "neutral";
@@ -22,6 +22,19 @@ export interface AgentTool {
   parameters?: Record<string, any>;
 }
 
+export interface HumanRealismConfig {
+  enableMicroBreaths: boolean;
+  enableBackchanneling: boolean;
+  enableAdaptiveEmotion: boolean;
+  maxWordsPerTurn: number; // e.g. 20-30 words
+  fillerFrequency: "low" | "medium" | "high";
+  voiceBlend?: {
+    enabled: boolean;
+    secondaryVoiceId: string;
+    blendRatio: number; // 0.0 to 1.0 (e.g. 0.3 for 30% secondary)
+  };
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -30,6 +43,7 @@ export interface Agent {
   color: string;
   status: AgentStatus;
   voice: VoiceConfig;
+  llmModel?: string;
   language: string;
   greeting: string;
   systemPrompt: string;
@@ -39,6 +53,9 @@ export interface Agent {
   maxCallDurationMinutes: number;
   knowledgeBaseIds: string[];
   tools: AgentTool[];
+  humanRealism?: HumanRealismConfig;
+  assignedPhoneNumber?: string;
+  assignedPhoneNumberId?: string;
   transferRules: {
     enabled: boolean;
     destinationNumber?: string;
@@ -125,7 +142,7 @@ export interface Call {
 }
 
 export type CampaignStatus = "active" | "paused" | "draft" | "completed";
-export type CampaignType = "outbound_sales" | "inbound_support" | "appointment_reminder" | "lead_qualification" | "survey";
+export type CampaignType = "outbound_sales" | "inbound_support" | "appointment_reminder" | "lead_qualification" | "survey" | string;
 
 export interface VoicemailDropConfig {
   enabled: boolean;
@@ -140,6 +157,9 @@ export interface Campaign {
   id: string;
   name: string;
   type: CampaignType;
+  customTypeTitle?: string;
+  customTypeObjective?: string;
+  campaignObjective?: string;
   status: CampaignStatus;
   agentId: string;
   agentName: string;
@@ -191,8 +211,9 @@ export interface Appointment {
   agentName: string;
   title: string;
   scheduledTime: string;
+  scheduledAt?: string;
   durationMinutes: number;
-  status: "confirmed" | "pending" | "rescheduled" | "cancelled" | "completed";
+  status: "confirmed" | "pending" | "rescheduled" | "cancelled" | "completed" | "scheduled";
   calendarType: "google" | "outlook" | "calendly";
   meetingLink?: string;
   notes?: string;
@@ -293,30 +314,45 @@ export interface ActivityTimelineItem {
 
 export type FlowNodeType =
   | "greeting"
+  | "message"
   | "question"
   | "collect_info"
+  | "form"
   | "knowledge_lookup"
   | "condition"
   | "appointment"
   | "transfer"
   | "send_sms"
+  | "send_email"
+  | "email"
   | "webhook"
+  | "note"
   | "end_call";
 
 export interface FlowNode {
   id: string;
   type: FlowNodeType;
-  title: string;
-  description: string;
+  title?: string;
+  label?: string;
+  description?: string;
   position: { x: number; y: number };
-  data: {
+  data?: {
     prompt?: string;
+    question?: string;
+    variable?: string;
     variableName?: string;
+    transferTo?: string;
+    webhookUrl?: string;
     branches?: { id: string; label: string; condition: string }[];
     toolName?: string;
     endpointUrl?: string;
     destination?: string;
     tags?: string[];
+    emailSubject?: string;
+    emailRecipient?: string;
+    emailTemplate?: string;
+    emailGateway?: "smtp" | "ses" | "sendgrid";
+    assignedPhoneNumber?: string;
   };
 }
 
@@ -327,6 +363,41 @@ export interface FlowEdge {
   sourceHandle?: string;
   label?: string;
 }
+
+export interface GoogleDriveFile {
+  id: number | string;
+  fileName: string;
+  fileType: "transcript" | "audio" | "brief" | "spreadsheet";
+  driveUrl: string;
+  appointmentId?: string;
+  fileSizeKb?: number;
+  createdAt: string;
+}
+
+export interface WebhookEndpoint {
+  id: string | number;
+  name: string;
+  url: string;
+  events: string[];
+  secret?: string;
+  status: "active" | "inactive" | "testing";
+  createdAt?: string;
+}
+
+export interface InboundWebhookPayload {
+  name?: string;
+  full_name?: string;
+  phone?: string;
+  phone_number?: string;
+  email?: string;
+  company?: string;
+  notes?: string;
+  message?: string;
+  source?: string;
+  campaign?: string;
+  metadata?: Record<string, any>;
+}
+
 
 /* Feature 4: A/B Testing Experiment Types */
 export interface ABTestExperiment {
@@ -364,6 +435,7 @@ export interface ABTestExperiment {
     sentimentScore: number;
   };
   confidenceScore: number; // e.g. 98.4%
+  conversionLiftPercent?: number;
   winner?: "variantA" | "variantB";
   startDate: string;
 }

@@ -24,18 +24,23 @@ export default function SuperAdminCallsPage() {
   const [tenantFilter, setTenantFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filteredCalls = globalCalls.filter((call) => {
+  const filteredCalls = (globalCalls || []).filter((call) => {
+    const callerName = call?.callerName || "";
+    const callerNumber = call?.callerNumber || "";
+    const agentName = call?.agentName || "";
+    const tenantName = call?.tenantName || "";
+
     const matchesSearch =
-      call.callerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      call.callerNumber.includes(searchQuery) ||
-      call.agentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      call.tenantName.toLowerCase().includes(searchQuery.toLowerCase());
+      callerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      callerNumber.includes(searchQuery) ||
+      agentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tenantName.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTenant = tenantFilter === "all" || call.tenantId === tenantFilter;
     const matchesStatus = statusFilter === "all" || call.status === statusFilter;
     return matchesSearch && matchesTenant && matchesStatus;
   });
 
-  const activeCount = globalCalls.filter((c) => c.status === "in_progress").length;
+  const activeCount = (globalCalls || []).filter((c) => c.status === "in_progress" || c.status === "live").length;
 
   return (
     <div className="space-y-6">
@@ -168,28 +173,28 @@ export default function SuperAdminCallsPage() {
                         <p className="text-[10px] text-[#64748B] font-mono">{call.callerNumber}</p>
                       </div>
                     </td>
-                    <td className="p-3 text-[#0F172A] font-semibold whitespace-nowrap">{call.agentName}</td>
-                    <td className="p-3 font-mono text-[11px] text-[#64748B] whitespace-nowrap">{call.carrier}</td>
+                    <td className="p-3 text-[#0F172A] font-semibold whitespace-nowrap">{call.agentName || "Rachel (Enterprise SDR)"}</td>
+                    <td className="p-3 font-mono text-[11px] text-[#64748B] whitespace-nowrap">{call.carrier || "Telnyx SIP Trunk"}</td>
                     <td className="p-3 whitespace-nowrap">
                       <div className="space-y-0.5">
                         <span className="text-[10px] font-bold text-[#3157D5] bg-[#EEF2FD] px-1.5 py-0.2 rounded inline-block">
-                          {call.llmModel}
+                          {call.llmModel || "GPT-4o Mini"}
                         </span>
-                        <p className="text-[9px] text-[#64748B]">{call.ttsVoice} • {call.sttEngine}</p>
+                        <p className="text-[9px] text-[#64748B]">{call.ttsVoice || "Kokoro af_heart"} • {call.sttEngine || "Parakeet STT"}</p>
                       </div>
                     </td>
                     <td className="p-3 font-mono font-semibold text-[#0F172A] whitespace-nowrap">
-                      {Math.floor(call.durationSeconds / 60)}m {call.durationSeconds % 60}s
+                      {Math.floor((call.durationSeconds || call.duration || 60) / 60)}m {(call.durationSeconds || call.duration || 60) % 60}s
                     </td>
                     <td className="p-3 whitespace-nowrap">
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                         isLive
                           ? "bg-emerald-50 text-emerald-600 border border-emerald-200 animate-pulse"
-                          : call.status === "completed"
+                          : (call.status || "completed") === "completed"
                           ? "bg-[#EEF2FD] text-[#3157D5]"
                           : "bg-rose-50 text-rose-600"
                       }`}>
-                        {call.status.replace("_", " ")}
+                        {(call.status || "completed").replace("_", " ")}
                       </span>
                     </td>
                     <td className="p-3 whitespace-nowrap">

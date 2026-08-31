@@ -4,6 +4,7 @@ import React, { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
 import { useAppStore } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
 import {
   Building2,
   Users,
@@ -23,6 +24,8 @@ import {
   Mail,
   User,
   X,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 function SuperAdminTenantsContent() {
@@ -32,9 +35,11 @@ function SuperAdminTenantsContent() {
 
   const {
     tenants,
+    refreshTenants,
     plans,
     sipCarriers,
     addTenant,
+    deleteTenant,
     adjustTenantCredits,
     updateTenantStatus,
     updateTenantQuotas,
@@ -42,11 +47,17 @@ function SuperAdminTenantsContent() {
     addToast: addSuperToast,
   } = useSuperAdminStore();
 
+  React.useEffect(() => {
+    refreshTenants();
+  }, [refreshTenants]);
+
   const { setActiveWorkspace, addToast: addAdminToast } = useAppStore();
+  const { startPreview } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState(queryParam);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [deleteModalTenant, setDeleteModalTenant] = useState<any | null>(null);
 
   // Credit Modal State
   const [creditModalTenant, setCreditModalTenant] = useState<string | null>(null);
@@ -70,6 +81,7 @@ function SuperAdminTenantsContent() {
   const [orgName, setOrgName] = useState("");
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("Admin@123");
   const [selectedPlanId, setSelectedPlanId] = useState("plan-growth");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "6_months" | "yearly" | "pay_as_you_go">("monthly");
   const [initialCredits, setInitialCredits] = useState(250);
@@ -86,6 +98,7 @@ function SuperAdminTenantsContent() {
       orgName: orgName.trim(),
       primaryAdminName: adminName.trim() || "Lead Admin",
       primaryAdminEmail: adminEmail.trim(),
+      password: adminPassword.trim() || "Admin@123",
       planId: planObj.id,
       planName: planObj.name,
       billingCycle,
@@ -96,7 +109,7 @@ function SuperAdminTenantsContent() {
       assignedEmailGateway: "Amazon SES Primary",
       assignedSmsGateway: "Twilio 10DLC Pool",
       allowedLLMs: ["gpt-4o", "claude-3-5-sonnet", "deepseek-v3"],
-      allowedTTS: ["elevenlabs-turbo-v2", "cartesia-sonic"],
+      allowedTTS: ["cartesia-sonic", "kokoro-82m"],
       allowedSTT: ["deepgram-nova-3"],
       status: "active",
     });
@@ -104,10 +117,14 @@ function SuperAdminTenantsContent() {
     setOrgName("");
     setAdminName("");
     setAdminEmail("");
+    setAdminPassword("Admin@123");
     setCreateModalOpen(false);
   };
 
-  const handleImpersonateTenant = (tenant: any) => {
+  const handleImpersonateTenant = async (tenant: any) => {
+    const rawId = typeof tenant.id === "string" ? tenant.id.replace("tenant-", "") : tenant.id;
+    const numericID = parseInt(rawId) || 1;
+
     setActiveWorkspace({
       id: tenant.id,
       name: tenant.orgName,
@@ -121,12 +138,15 @@ function SuperAdminTenantsContent() {
     });
 
     addAdminToast({
-      title: "Switched Workspace",
-      description: `Now inspecting '${tenant.orgName}' as ${tenant.primaryAdminEmail}.`,
+      title: "Initializing Preview Mode",
+      description: `Authorizing server preview token for '${tenant.orgName}'...`,
       type: "success",
     });
 
-    window.location.href = "/dashboard";
+    const success = await startPreview(numericID);
+    if (!success) {
+      window.location.href = "/dashboard";
+    }
   };
 
   const handleApplyCreditAdjustment = () => {
@@ -176,12 +196,12 @@ function SuperAdminTenantsContent() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black text-[#0F172A] tracking-tight">Tenant Organizations & Admins</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#EEF2FD] text-[#3157D5]">
-                {tenants.length} Tenant Orgs
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-[#EEF2FD] text-[#3157D5] border border-[#3157D5]/20">
+                1 Master Super Admin Control • {tenants.length} Tenant Workspaces
               </span>
             </div>
             <p className="text-xs text-[#64748B] mt-0.5">
-              Provision client admin organizations, customize account emails/passwords, assign SIP carriers, and 1-click preview.
+              Each tenant organization has 1 designated Lead Admin, managed and supervised globally by the Master Super Admin.
             </p>
           </div>
         </div>
@@ -191,7 +211,7 @@ function SuperAdminTenantsContent() {
             <Search className="w-4 h-4 text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search tenant orgs..."
+              placeholder="Search tenant orgs or admins..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 bg-white border border-[#E2E8F0] rounded-xl text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
@@ -200,7 +220,7 @@ function SuperAdminTenantsContent() {
 
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#3157D5]/20 shrink-0"
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#3157D5]/20 shrink-0 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Provision Tenant</span>
@@ -290,10 +310,24 @@ function SuperAdminTenantsContent() {
                         setCreditModalTenant(tenant.id);
                         setCreditAmount(500);
                       }}
-                      className="flex-1 py-2 bg-white hover:bg-[#EEF2FD] border border-[#E2E8F0] hover:border-[#3157D5] text-[#0F172A] hover:text-[#3157D5] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-2xs"
+                      className="flex-1 py-2 bg-white hover:bg-[#EEF2FD] border border-[#E2E8F0] hover:border-[#3157D5] text-[#0F172A] hover:text-[#3157D5] rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
                     >
                       <Coins className="w-3.5 h-3.5" />
                       <span>Adjust Credits</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCustomizeModalTenant(tenant.id);
+                        setCustOrgName(tenant.orgName);
+                        setCustAdminName(tenant.primaryAdminName);
+                        setCustAdminEmail(tenant.primaryAdminEmail);
+                        setCustPasswordReset(tenant.password || "Admin@123");
+                      }}
+                      className="p-2 bg-white hover:bg-[#EEF2FD] border border-[#E2E8F0] hover:border-[#3157D5] rounded-xl text-[#3157D5] transition-colors cursor-pointer"
+                      title="Edit Organization & Change Password"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
                     </button>
 
                     <button
@@ -303,7 +337,7 @@ function SuperAdminTenantsContent() {
                         setEditCarrier(tenant.assignedSipCarrier);
                         setEditRate(tenant.creditRatePerMinute);
                       }}
-                      className="p-2 bg-white hover:bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl text-[#64748B] hover:text-[#0F172A] transition-colors"
+                      className="p-2 bg-white hover:bg-[#F1F5F9] border border-[#E2E8F0] rounded-xl text-[#64748B] hover:text-[#0F172A] transition-colors cursor-pointer"
                       title="Edit Resource Quotas"
                     >
                       <Sliders className="w-3.5 h-3.5" />
@@ -311,7 +345,7 @@ function SuperAdminTenantsContent() {
 
                     <button
                       onClick={() => updateTenantStatus(tenant.id, tenant.status === "active" ? "suspended" : "active")}
-                      className={`px-3 py-2 border rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 ${
+                      className={`px-3 py-2 border rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
                         tenant.status === "active"
                           ? "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-600"
                           : "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
@@ -320,6 +354,14 @@ function SuperAdminTenantsContent() {
                     >
                       <Power className="w-3.5 h-3.5" />
                       <span>{tenant.status === "active" ? "Deactivate" : "Activate"}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setDeleteModalTenant(tenant)}
+                      className="p-2 bg-white hover:bg-rose-50 border border-[#E2E8F0] hover:border-rose-300 text-rose-500 rounded-xl transition-colors cursor-pointer"
+                      title="Delete Organization & Revoke Admin Access"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
@@ -477,7 +519,7 @@ function SuperAdminTenantsContent() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-[#0F172A] block mb-1">Primary Admin Name</label>
                   <input
@@ -501,6 +543,21 @@ function SuperAdminTenantsContent() {
                     className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1">Admin Initial Login Password</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Admin@123"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A] font-mono"
+                />
+                <p className="text-[10px] text-[#64748B] mt-1">
+                  The admin will use this email and password to log in at <span className="text-[#3157D5] font-mono font-bold">/login</span> to open their workspace.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -697,6 +754,156 @@ function SuperAdminTenantsContent() {
                 className="px-5 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold transition-colors"
               >
                 Save Quotas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Edit Tenant Account & Password Modal */}
+      {customizeModalTenant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#EEF2FD] text-[#3157D5] flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-bold text-[#0F172A]">Edit Organization & Password</h3>
+              </div>
+              <button onClick={() => setCustomizeModalTenant(null)} className="p-1 text-[#64748B] hover:text-[#0F172A] cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomizeAccount} className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1">Organization / Company Name</label>
+                <input
+                  type="text"
+                  required
+                  value={custOrgName}
+                  onChange={(e) => setCustOrgName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
+                  placeholder="e.g. Apex Financial Services"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-[#0F172A] block mb-1">Lead Admin Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={custAdminName}
+                    onChange={(e) => setCustAdminName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
+                    placeholder="e.g. Sarah Jenkins"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-[#0F172A] block mb-1">Admin Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={custAdminEmail}
+                    onChange={(e) => setCustAdminEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A]"
+                    placeholder="admin@apexvoice.ai"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-[#0F172A] block mb-1 flex items-center justify-between">
+                  <span>Dashboard Login Password</span>
+                  <span className="text-[10px] text-[#3157D5] font-semibold">PostgreSQL Live Hash</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={custPasswordReset}
+                  onChange={(e) => setCustPasswordReset(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-[#E2E8F0] rounded-xl outline-none focus:border-[#3157D5] text-[#0F172A] font-mono"
+                  placeholder="Enter new password (e.g. Admin@123)"
+                />
+                <p className="text-[10px] text-[#64748B] mt-1">
+                  Updating this changes the tenant&apos;s active login credentials across both PostgreSQL database tables.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#E2E8F0]">
+                <button
+                  type="button"
+                  onClick={() => setCustomizeModalTenant(null)}
+                  className="px-4 py-2 text-xs font-bold text-[#64748B] hover:text-[#0F172A] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-[#3157D5] hover:bg-[#2646B8] text-white rounded-xl text-xs font-bold shadow-md shadow-[#3157D5]/20 transition-colors cursor-pointer"
+                >
+                  Save Organization & Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Confirm Delete Tenant Organization Modal */}
+      {deleteModalTenant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[#0F172A]">Delete Tenant Organization</h3>
+                <p className="text-xs text-rose-600 font-semibold">Irreversible Platform Deletion</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-[#64748B]">Organization Name:</span>
+                <span className="font-bold text-[#0F172A]">{deleteModalTenant.orgName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#64748B]">Lead Admin Account:</span>
+                <span className="font-mono font-bold text-[#3157D5]">{deleteModalTenant.primaryAdminEmail}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#64748B]">Plan / Credits:</span>
+                <span className="font-mono text-emerald-600">${deleteModalTenant.creditsBalance.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#64748B] leading-relaxed">
+              Are you sure you want to delete <strong>{deleteModalTenant.orgName}</strong>? This action will permanently wipe the tenant workspace, delete its voice bots, SIP trunks, call records, and revoke all administrator login access from the PostgreSQL database.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EDF2F7]">
+              <button
+                type="button"
+                onClick={() => setDeleteModalTenant(null)}
+                className="px-4 py-2.5 text-xs font-bold text-[#64748B] hover:text-[#0F172A] rounded-xl hover:bg-[#F1F5F9] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteTenant(deleteModalTenant.id);
+                  setDeleteModalTenant(null);
+                }}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete Organization & Revoke Admin</span>
               </button>
             </div>
           </div>

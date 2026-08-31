@@ -36,7 +36,7 @@ export const initialABExperiments: ABTestExperiment[] = [
       sentimentScore: 0,
     },
     confidenceScore: 0.0,
-    winner: null,
+    winner: undefined,
     startDate: "2026-08-10T00:00:00Z",
   },
   {
@@ -74,7 +74,7 @@ export const initialABExperiments: ABTestExperiment[] = [
       sentimentScore: 0,
     },
     confidenceScore: 0.0,
-    winner: null,
+    winner: undefined,
     startDate: "2026-08-14T00:00:00Z",
   },
 ];
