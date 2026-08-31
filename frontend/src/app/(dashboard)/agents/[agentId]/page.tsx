@@ -108,13 +108,21 @@ export default function EditAgentPage() {
       type: "info",
     });
 
-    await playKokoroNeuralAudio(
+    const result = await playKokoroNeuralAudio(
       textToSpeak,
       voice.id,
       voiceSpeed,
       () => setPlayingVoiceId(voice.id),
       () => setPlayingVoiceId(null)
     );
+
+    if (!result.success) {
+      addToast({
+        title: "GPU Server Offline",
+        description: result.error || "Could not reach server.ibrasoft.com. Start voice-agent-gpu to audition real neural audio.",
+        type: "error",
+      });
+    }
   };
 
   const activeLlmOption = llmOptions.find((m) => m.id === selectedLlmId) || llmOptions[0] || LLM_MODEL_OPTIONS[0];

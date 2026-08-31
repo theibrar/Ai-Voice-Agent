@@ -129,7 +129,7 @@ export default function CreateAgentPage() {
       type: "info",
     });
 
-    await playKokoroNeuralAudio(
+    const result = await playKokoroNeuralAudio(
       textToSpeak,
       voice.id,
       voiceSpeed,
@@ -142,6 +142,14 @@ export default function CreateAgentPage() {
         setIsPlayingSample(false);
       }
     );
+
+    if (!result.success) {
+      addToast({
+        title: "GPU Server Offline",
+        description: result.error || "Could not reach server.ibrasoft.com. Start voice-agent-gpu to audition real neural audio.",
+        type: "error",
+      });
+    }
   };
 
   // LLM State

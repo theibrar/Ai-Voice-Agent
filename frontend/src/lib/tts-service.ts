@@ -1,9 +1,17 @@
 /**
  * Real-Time Kokoro-82M Neural Audio Synthesis Client
- * Connects directly to GPU worker at server.ibrasoft.com or local endpoint.
+ * Exclusively connects to the GPU worker cluster at server.ibrasoft.com.
+ * Local browser speech synthesis is STRICTLY DISABLED.
  */
 
 let activeAudioElement: HTMLAudioElement | null = null;
+
+export interface TTSResult {
+  success: boolean;
+  error?: string;
+  latencyMs?: number;
+  audioBlob?: Blob;
+}
 
 export async function playKokoroNeuralAudio(
   text: string,
@@ -11,94 +19,78 @@ export async function playKokoroNeuralAudio(
   speed: number = 1.0,
   onStart?: () => void,
   onEnd?: () => void
-): Promise<boolean> {
-  if (typeof window === "undefined") return false;
+): Promise<TTSResult> {
+  if (typeof window === "undefined") {
+    return { success: false, error: "Window context unavailable" };
+  }
 
-  // Stop any currently playing audio
+  // Stop any currently playing audio stream
   if (activeAudioElement) {
     activeAudioElement.pause();
     activeAudioElement.currentTime = 0;
     activeAudioElement = null;
   }
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-  }
 
-  // Try GPU Neural Endpoint with ultra-fast timeout (600ms)
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 600);
+  const startTime = Date.now();
 
-    const res = await fetch("https://server.ibrasoft.com/api/v1/tts/synthesize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, voice, speed }),
-      signal: controller.signal,
-    }).catch(() => null);
+  const endpoints = [
+    "https://server.ibrasoft.com/api/v1/tts/synthesize",
+    "http://85.218.235.6:8088/synthesize",
+  ];
 
-    clearTimeout(timeoutId);
+  for (const endpoint of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    if (res && res.ok) {
-      const audioBlob = await res.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      activeAudioElement = audio;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, voice, speed }),
+        signal: controller.signal,
+      }).catch(() => null);
 
-      audio.onplay = () => {
-        if (onStart) onStart();
-      };
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl);
-        activeAudioElement = null;
-        if (onEnd) onEnd();
-      };
-      audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl);
-        activeAudioElement = null;
-        if (onEnd) onEnd();
-      };
+      clearTimeout(timeoutId);
 
-      await audio.play();
-      return true;
+      if (res && res.ok) {
+        const audioBlob = await res.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        activeAudioElement = audio;
+
+        audio.onplay = () => {
+          if (onStart) onStart();
+        };
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+          activeAudioElement = null;
+          if (onEnd) onEnd();
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(audioUrl);
+          activeAudioElement = null;
+          if (onEnd) onEnd();
+        };
+
+        await audio.play();
+        return {
+          success: true,
+          audioBlob,
+          latencyMs: Date.now() - startTime,
+        };
+      }
+    } catch {
+      // Try next endpoint
     }
-  } catch {
-    // Proceed immediately to zero-latency instant audio
   }
 
-  // Fallback to browser SpeechSynthesis if remote server is unreachable
-  if ("speechSynthesis" in window) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = Math.max(0.8, Math.min(1.5, speed));
-
-    const allVoices = window.speechSynthesis.getVoices();
-    const isFemale = !voice.startsWith("am") && !voice.startsWith("bm") && !voice.startsWith("em") && !voice.startsWith("dm") && !voice.startsWith("im") && !voice.startsWith("pm") && !voice.startsWith("jm") && !voice.startsWith("zm") && !voice.startsWith("hm");
-    
-    if (isFemale) {
-      const femaleMatch = allVoices.find((v) => ["zira", "jenny", "aria", "samantha", "female", "natural"].some(k => v.name.toLowerCase().includes(k))) || allVoices[0];
-      if (femaleMatch) utterance.voice = femaleMatch;
-      utterance.pitch = 1.2;
-    } else {
-      const maleMatch = allVoices.find((v) => ["david", "guy", "mark", "male"].some(k => v.name.toLowerCase().includes(k))) || allVoices[0];
-      if (maleMatch) utterance.voice = maleMatch;
-      utterance.pitch = 0.9;
-    }
-
-    utterance.onstart = () => {
-      if (onStart) onStart();
-    };
-    utterance.onend = () => {
-      if (onEnd) onEnd();
-    };
-    utterance.onerror = () => {
-      if (onEnd) onEnd();
-    };
-
-    window.speechSynthesis.speak(utterance);
-    return true;
-  }
-
+  // If GPU server is offline, DO NOT PLAY BROWSER SPEECH. Report error immediately.
   if (onEnd) onEnd();
-  return false;
+
+  return {
+    success: false,
+    error: "GPU Neural Server (server.ibrasoft.com) is offline or unreachable. Please start voice-agent-gpu on your server.",
+  };
 }
 
 export function stopNeuralAudio() {
@@ -107,8 +99,5 @@ export function stopNeuralAudio() {
     activeAudioElement.pause();
     activeAudioElement.currentTime = 0;
     activeAudioElement = null;
-  }
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
   }
 }
