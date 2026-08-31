@@ -157,3 +157,101 @@ type SupervisorIntervention struct {
 	WhisperText  string    `json:"whisper_text"`
 	CreatedAt    time.Time `json:"created_at"`
 }
+
+type Webhook struct {
+	ID        int       `json:"id"`
+	TenantID  int       `json:"tenant_id"`
+	Name      string    `json:"name"`
+	URL       string    `json:"url"`
+	Events    []string  `json:"events"`
+	Secret    string    `json:"secret"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Contact struct {
+	ID              string    `json:"id"`
+	TenantID        int       `json:"tenant_id"`
+	Name            string    `json:"name"`
+	Phone           string    `json:"phone"`
+	Email           string    `json:"email"`
+	Company         string    `json:"company"`
+	LeadScore       int       `json:"lead_score"`
+	Status          string    `json:"status"`
+	CampaignName    string    `json:"campaign_name"`
+	LastCallOutcome string    `json:"last_call_outcome"`
+	Notes           string    `json:"notes"`
+	Tags            []string  `json:"tags"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type Integration struct {
+	ID           int             `json:"id"`
+	TenantID     int             `json:"tenant_id"`
+	Provider     string          `json:"provider"`
+	Config       json.RawMessage `json:"config"`
+	Status       string          `json:"status"`
+	LastSyncedAt time.Time       `json:"last_synced_at"`
+}
+
+type GoogleDriveFile struct {
+	ID                  int       `json:"id"`
+	TenantID            int       `json:"tenant_id"`
+	FileName            string    `json:"file_name"`
+	FileType            string    `json:"file_type"`
+	DriveURL            string    `json:"drive_url"`
+	LinkedAppointmentID string    `json:"linked_appointment_id"`
+	FileSizeKB          int       `json:"file_size_kb"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+type EmailLog struct {
+	ID          int       `json:"id"`
+	TenantID    int       `json:"tenant_id"`
+	Recipient   string    `json:"recipient"`
+	Subject     string    `json:"subject"`
+	Body        string    `json:"body"`
+	GatewayType string    `json:"gateway_type"`
+	Status      string    `json:"status"`
+	SentAt      time.Time `json:"sent_at"`
+}
+
+type FlowDefinition struct {
+	ID                  string          `json:"id"`
+	TenantID            int             `json:"tenant_id"`
+	Name                string          `json:"name"`
+	Nodes               json.RawMessage `json:"nodes"`
+	Edges               json.RawMessage `json:"edges"`
+	AssignedPhoneNumber string          `json:"assigned_phone_number"`
+	IsActive            bool            `json:"is_active"`
+	UpdatedAt           time.Time       `json:"updated_at"`
+}
+
+type PhoneNumberItem struct {
+	ID                 string    `json:"id"`
+	TenantID           int       `json:"tenant_id"`
+	Number             string    `json:"number"`
+	FriendlyName       string    `json:"friendly_name"`
+	Country            string    `json:"country"`
+	AssignedAgentID    string    `json:"assigned_agent_id"`
+	AssignedCampaignID string    `json:"assigned_campaign_id"`
+	Status             string    `json:"status"`
+	MonthlyCost        float64   `json:"monthly_cost"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type InboundWebhookPayload struct {
+	Name        string                 `json:"name"`
+	FullName    string                 `json:"full_name"`
+	Phone       string                 `json:"phone"`
+	PhoneNumber string                 `json:"phone_number"`
+	Email       string                 `json:"email"`
+	Company     string                 `json:"company"`
+	Notes       string                 `json:"notes"`
+	Message     string                 `json:"message"`
+	Source      string                 `json:"source"`
+	Campaign    string                 `json:"campaign"`
+	Metadata    map[string]interface{} `json:"metadata"`
+}
+
