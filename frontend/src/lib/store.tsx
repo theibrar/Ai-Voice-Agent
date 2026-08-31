@@ -337,7 +337,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([]);
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [incomingConnections] = useState<IncomingConnection[]>([]);
-  const [templates] = useState<Template[]>([]);
+  const [templates] = useState<Template[]>(initialTemplates);
 
   // Toasts State
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
