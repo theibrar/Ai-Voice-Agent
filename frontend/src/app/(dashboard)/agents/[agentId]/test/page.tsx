@@ -106,6 +106,17 @@ export default function TestAgentPlayground() {
     }
   }, [turns, isThinking]);
 
+  useEffect(() => {
+    if (agent?.greeting) {
+      setTurns((prev) => {
+        if (prev.length === 1 && prev[0].id === "t-0") {
+          return [{ ...prev[0], text: agent.greeting }];
+        }
+        return prev;
+      });
+    }
+  }, [agent?.greeting]);
+
   // Audio Speech Synthesis for Agent
   const speakText = (text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;

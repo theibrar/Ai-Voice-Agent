@@ -93,7 +93,7 @@ export default function EditAgentPage() {
     return matchesLang && matchesGender && matchesSearch;
   });
 
-  const playVoiceSample = (voice: NeuralVoicePersona) => {
+  const playVoiceSample = (voice: NeuralVoicePersona, customText?: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       addToast({
         title: "Audio Preview Simulation",
@@ -103,16 +103,17 @@ export default function EditAgentPage() {
       return;
     }
 
-    if (playingVoiceId === voice.id) {
+    if (playingVoiceId === voice.id && !customText) {
       window.speechSynthesis.cancel();
       setPlayingVoiceId(null);
       return;
     }
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(voice.sampleText);
+    const textToSpeak = customText || greeting || voice.sampleText;
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
     utterance.lang = voice.langCode;
-    utterance.rate = voiceSpeed;
+    utterance.rate = Math.max(0.8, Math.min(1.5, voiceSpeed));
 
     // Get system voices and filter by target language and gender
     const allVoices = window.speechSynthesis.getVoices();

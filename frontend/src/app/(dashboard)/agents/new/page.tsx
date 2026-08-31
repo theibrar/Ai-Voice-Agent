@@ -113,7 +113,7 @@ export default function CreateAgentPage() {
     return matchesLang && matchesGender && matchesSearch;
   });
 
-  const playVoiceSample = (voice: NeuralVoicePersona) => {
+  const playVoiceSample = (voice: NeuralVoicePersona, customText?: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       addToast({
         title: "Audio Preview Simulation",
@@ -123,7 +123,7 @@ export default function CreateAgentPage() {
       return;
     }
 
-    if (playingVoiceId === voice.id) {
+    if (playingVoiceId === voice.id && !customText) {
       window.speechSynthesis.cancel();
       setPlayingVoiceId(null);
       setIsPlayingSample(false);
@@ -131,9 +131,10 @@ export default function CreateAgentPage() {
     }
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(voice.sampleText);
+    const textToSpeak = customText || greeting || voice.sampleText;
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
     utterance.lang = voice.langCode;
-    utterance.rate = voiceSpeed;
+    utterance.rate = Math.max(0.8, Math.min(1.5, voiceSpeed));
 
     // Get system voices and filter by target language and gender
     const allVoices = window.speechSynthesis.getVoices();
@@ -1215,7 +1216,7 @@ If the customer wants a meeting, use the book_appointment tool.`);
               <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
-                  onClick={() => playVoiceSample(selectedVoice)}
+                  onClick={() => playVoiceSample(selectedVoice, greeting)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                     isPlayingSample
                       ? "bg-rose-500 text-white shadow-xs animate-pulse"
