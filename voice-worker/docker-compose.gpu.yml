@@ -44,20 +44,13 @@ services:
       - LIVEKIT_URL=ws://127.0.0.1:7880
       - LIVEKIT_API_KEY=devkey
       - LIVEKIT_API_SECRET=secret
-      - BACKEND_API_URL=${BACKEND_API_URL:-http://127.0.0.1:8080/api/v1}
-      - BACKEND_WS_URL=${BACKEND_WS_URL:-ws://127.0.0.1:8080/api/v1/ws/calls}
+      - BACKEND_API_URL=${BACKEND_API_URL:-https://agents.ibrasoft.com/api/v1}
+      - BACKEND_WS_URL=${BACKEND_WS_URL:-wss://agents.ibrasoft.com/api/v1/ws/calls}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - LD_LIBRARY_PATH=/usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/dist-packages/nvidia/cublas/lib:/usr/local/cuda/lib64
-      - EXECUTION_DEVICE=gpu
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      - EXECUTION_DEVICE=cpu
     volumes:
       - ./:/app
       - ./models:/app/models

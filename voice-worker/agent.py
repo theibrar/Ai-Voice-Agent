@@ -322,20 +322,16 @@ def main():
     logger.info(f"   Domain: server.ibrasoft.com | Device: {EXECUTION_DEVICE.upper()} ")
     logger.info(f"   Target Backend: {BACKEND_API_URL}")
     logger.info("================================================================")
-    
+
     if len(sys.argv) == 1:
         sys.argv.append("start")
 
     try:
         from livekit.agents import WorkerOptions, cli
-        logger.info("✓ LiveKit Agents SDK loaded. Starting worker listener...")
+        logger.info("✓ LiveKit Agents SDK loaded. Connecting worker to LiveKit server...")
         cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
     except Exception as e:
-        logger.warning(f"LiveKit worker startup notice: {e}. Starting persistent standby loop...")
-        async def fallback_loop():
-            while True:
-                await asyncio.sleep(10)
-        asyncio.run(fallback_loop())
+        logger.error(f"LiveKit worker error: {e}")
 
 if __name__ == "__main__":
     try:
