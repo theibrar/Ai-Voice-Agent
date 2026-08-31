@@ -34,6 +34,7 @@ import {
   Users,
 } from "lucide-react";
 import { NEURAL_VOICE_PERSONAS, SUPPORTED_LANGUAGES, NeuralVoicePersona } from "@/lib/neural-voices";
+import { playKokoroNeuralAudio, stopNeuralAudio } from "@/lib/tts-service";
 
 export interface LLMModelOption {
   id: string;
@@ -113,95 +114,34 @@ export default function CreateAgentPage() {
     return matchesLang && matchesGender && matchesSearch;
   });
 
-  const playVoiceSample = (voice: NeuralVoicePersona, customText?: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      addToast({
-        title: "Audio Preview Simulation",
-        description: `Voice: ${voice.voiceName} (${voice.language})`,
-        type: "info",
-      });
-      return;
-    }
-
+  const playVoiceSample = async (voice: NeuralVoicePersona, customText?: string) => {
     if (playingVoiceId === voice.id && !customText) {
-      window.speechSynthesis.cancel();
+      stopNeuralAudio();
       setPlayingVoiceId(null);
       setIsPlayingSample(false);
       return;
     }
 
-    window.speechSynthesis.cancel();
     const textToSpeak = customText || greeting || voice.sampleText;
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = voice.langCode;
-    utterance.rate = Math.max(0.8, Math.min(1.5, voiceSpeed));
-
-    // Get system voices and filter by target language and gender
-    const allVoices = window.speechSynthesis.getVoices();
-    const baseLang = voice.langCode.toLowerCase().split("-")[0];
-    const langVoices = allVoices.filter((v) =>
-      v.lang.toLowerCase().replace("_", "-").startsWith(baseLang)
-    );
-
-    const femaleKeywords = [
-      "zira", "jenny", "aria", "samantha", "victoria", "susan", "karen", "female",
-      "natural", "eva", "helena", "laura", "maria", "paulina", "julie", "hortense",
-      "hedda", "katja", "elsa", "alice", "hazel", "serena", "lisa", "katherine", "sonia", "monica"
-    ];
-    const maleKeywords = [
-      "david", "guy", "mark", "richard", "george", "male", "alex", "raul", "paul",
-      "stefan", "hans", "cosimo", "diego", "james", "michael", "tom", "daniel", "pablo"
-    ];
-
-    let targetVoice: SpeechSynthesisVoice | undefined;
-
-    if (voice.gender === "female") {
-      // 1. Look for explicit female name match
-      targetVoice =
-        langVoices.find((v) => femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices.find((v) => !maleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        allVoices.find((v) => femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices[0];
-
-      // Elevate pitch for feminine tone
-      utterance.pitch = Math.max(1.2, 1.25 + voicePitch);
-    } else {
-      // 1. Look for explicit male name match
-      targetVoice =
-        langVoices.find((v) => maleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices.find((v) => !femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        allVoices.find((v) => maleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices[0];
-
-      // Lower pitch for masculine depth
-      utterance.pitch = Math.min(0.9, 0.88 + voicePitch);
-    }
-
-    if (targetVoice) {
-      utterance.voice = targetVoice;
-    }
-
-    utterance.onstart = () => {
-      setPlayingVoiceId(voice.id);
-      setIsPlayingSample(true);
-    };
-
-    utterance.onend = () => {
-      setPlayingVoiceId(null);
-      setIsPlayingSample(false);
-    };
-
-    utterance.onerror = () => {
-      setPlayingVoiceId(null);
-      setIsPlayingSample(false);
-    };
-
-    window.speechSynthesis.speak(utterance);
     addToast({
-      title: `Playing Voice Sample: ${voice.flag} ${voice.voiceName}`,
-      description: `Gender: ${voice.gender.toUpperCase()} • Language: ${voice.language}`,
+      title: `Auditioning: ${voice.flag} ${voice.voiceName}`,
+      description: `Kokoro Neural Model • Speed: ${voiceSpeed}x`,
       type: "info",
     });
+
+    await playKokoroNeuralAudio(
+      textToSpeak,
+      voice.id,
+      voiceSpeed,
+      () => {
+        setPlayingVoiceId(voice.id);
+        setIsPlayingSample(true);
+      },
+      () => {
+        setPlayingVoiceId(null);
+        setIsPlayingSample(false);
+      }
+    );
   };
 
   // LLM State

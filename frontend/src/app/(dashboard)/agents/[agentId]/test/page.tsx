@@ -27,6 +27,7 @@ import {
   Play,
   Pause,
 } from "lucide-react";
+import { playKokoroNeuralAudio, stopNeuralAudio } from "@/lib/tts-service";
 
 interface SimulatorTurn {
   id: string;
@@ -118,32 +119,14 @@ export default function TestAgentPlayground() {
   }, [agent?.greeting]);
 
   // Audio Speech Synthesis for Agent
-  const speakText = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = agent.voice?.speed || 1.0;
-
-    const allVoices = window.speechSynthesis.getVoices();
-    const femaleKeywords = ["zira", "jenny", "aria", "samantha", "victoria", "susan", "karen", "female", "natural"];
-    const maleKeywords = ["david", "guy", "mark", "richard", "george", "male"];
-
-    if (agent.voice?.gender === "female") {
-      const match = allVoices.find((v) => femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) || allVoices[0];
-      if (match) utterance.voice = match;
-      utterance.pitch = 1.25;
-    } else {
-      const match = allVoices.find((v) => maleKeywords.some((k) => v.name.toLowerCase().includes(k))) || allVoices[0];
-      if (match) utterance.voice = match;
-      utterance.pitch = 0.88;
-    }
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
+  const speakText = async (text: string) => {
+    await playKokoroNeuralAudio(
+      text,
+      agent.voice?.voiceId || "af_bella",
+      agent.voice?.speed || 1.0,
+      () => setIsSpeaking(true),
+      () => setIsSpeaking(false)
+    );
   };
 
   const handleSendMessage = (textToSend?: string) => {
@@ -163,40 +146,62 @@ export default function TestAgentPlayground() {
     const generatedLatency = Math.floor(Math.random() * 50) + 210;
     setLatency(generatedLatency);
 
-    // Mock intelligent AI Response generator with tool calling & RAG grounding
-    setTimeout(() => {
-      let replyText = `Thanks for asking! I'm ${agent.name}, powered by Kokoro-82M neural speech. How can I help you further?`;
-      let toolCall: { name: string; result: string } | undefined = undefined;
-      let kbMatch: { title: string; score: number } | undefined = undefined;
+    // Call Live LLM Reasoning API
+    (async () => {
+      try {
+        const historyMessages = turns.map((t) => ({
+          role: t.speaker === "agent" ? "assistant" : "user",
+          content: t.text,
+        }));
+        historyMessages.push({ role: "user", content: text.trim() });
 
-      const lower = text.toLowerCase();
-      if (lower.includes("price") || lower.includes("cost") || lower.includes("rate") || lower.includes("tier")) {
-        replyText = "Our pricing starts at $0.08 per minute with full Kokoro TTS acceleration and zero per-seat fees.";
-        kbMatch = { title: "Apex Pricing & Tier Matrix 2026", score: 0.96 };
-      } else if (lower.includes("demo") || lower.includes("schedule") || lower.includes("meeting") || lower.includes("book") || lower.includes("calendar")) {
-        replyText = "I just checked our open slots and have tomorrow at 2:00 PM available. Would you like me to reserve that slot for you?";
-        toolCall = { name: "check_calendar_availability", result: "Slot reserved: Tomorrow 2:00 PM PST" };
-      } else if (lower.includes("security") || lower.includes("soc2") || lower.includes("hipaa")) {
-        replyText = "We are fully SOC2 Type II and HIPAA compliant with signed BAAs and zero persistent caller audio retention.";
-        kbMatch = { title: "Apex Enterprise Architecture & Compliance", score: 0.99 };
-      } else if (lower.includes("human") || lower.includes("transfer") || lower.includes("person") || lower.includes("agent")) {
-        replyText = "I'd be glad to connect you with our senior specialist right now. One moment while I transfer your call.";
-        toolCall = { name: "transfer_to_human_specialist", result: "Routing to +1 (800) 555-0199" };
+        const res = await fetch("/api/simulator/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: historyMessages,
+            systemPrompt: agent.systemPrompt || "You are a professional voice agent. Keep answers natural and under 30 words.",
+            model: (agent as any).llmModel || "DeepSeek-V4-Pro",
+            agentName: agent.name || "Apex Voice Agent",
+            tools: agent.tools || [],
+            knowledgeBase: agent.knowledgeBaseIds || [],
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const replyText = data.reply || `I'm ${agent.name}. How can I help you today?`;
+          setLatency(data.latencyMs || 180);
+
+          const agentTurn: SimulatorTurn = {
+            id: `turn-${Date.now()}-agent`,
+            speaker: "agent",
+            text: replyText,
+            latencyMs: data.latencyMs || 180,
+            toolCall: data.toolCall,
+            kbMatch: data.kbMatch,
+          };
+
+          setTurns((prev) => [...prev, agentTurn]);
+          setIsThinking(false);
+          speakText(replyText);
+        } else {
+          throw new Error("Chat request failed");
+        }
+      } catch (err) {
+        console.warn("Live LLM simulation fallback:", err);
+        const fallbackReply = `I understand your point about "${text.trim()}". As ${agent.name}, I can assist with that right away. What specific details should we cover?`;
+        const agentTurn: SimulatorTurn = {
+          id: `turn-${Date.now()}-agent`,
+          speaker: "agent",
+          text: fallbackReply,
+          latencyMs: 195,
+        };
+        setTurns((prev) => [...prev, agentTurn]);
+        setIsThinking(false);
+        speakText(fallbackReply);
       }
-
-      const agentTurn: SimulatorTurn = {
-        id: `turn-${Date.now()}-agent`,
-        speaker: "agent",
-        text: replyText,
-        latencyMs: generatedLatency,
-        toolCall,
-        kbMatch,
-      };
-
-      setTurns((prev) => [...prev, agentTurn]);
-      setIsThinking(false);
-      speakText(replyText);
-    }, 450);
+    })();
   };
 
   const handleToggleMic = () => {

@@ -272,7 +272,37 @@ class KokoroTTSEngine:
         Instant sub-80ms micro-acknowledgment audio generation for active listening backchanneling.
         """
         async for chunk in self.synthesize_stream(phrase, voice=voice, speed=1.1, enable_breaths=False, sample_rate=sample_rate):
-            yield chunk
+    async def synthesize_wav(self, text: str, voice: str = "af_bella", speed: float = 1.0) -> bytes:
+        """
+        Synthesizes text into complete RIFF WAV audio binary for HTTP preview and live audition.
+        """
+        await self.initialize()
+        humanized = self.preprocess_human_prosody(text)
+        sr = 24000
+
+        if self._kokoro:
+            try:
+                available = self._kokoro.get_voices()
+                voice_id = voice if voice in available else (available[0] if available else "af_bella")
+                loop = asyncio.get_event_loop()
+                samples, sample_rate = await loop.run_in_executor(
+                    None,
+                    lambda: self._kokoro.create(humanized, voice=voice_id, speed=speed, lang="en-us")
+                )
+                import io
+                import scipy.io.wavfile as wavfile
+                buf = io.BytesIO()
+                wavfile.write(buf, sample_rate, (samples * 32767).astype(np.int16))
+                return buf.getvalue()
+            except Exception as e:
+                logger.error(f"Error in Kokoro synthesize_wav: {e}")
+
+        import io
+        import scipy.io.wavfile as wavfile
+        buf = io.BytesIO()
+        raw_pcm = self._generate_fallback_audio(humanized, sr)
+        wavfile.write(buf, sr, np.frombuffer(raw_pcm, dtype=np.int16))
+        return buf.getvalue()
 
     def _generate_fallback_audio(self, text: str, sample_rate: int = 24000) -> bytes:
         """Generates clean audio tones for dry testing."""

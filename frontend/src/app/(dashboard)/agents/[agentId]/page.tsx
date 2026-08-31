@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { LLM_MODEL_OPTIONS } from "../new/page";
 import { NEURAL_VOICE_PERSONAS, SUPPORTED_LANGUAGES, NeuralVoicePersona } from "@/lib/neural-voices";
+import { playKokoroNeuralAudio, stopNeuralAudio } from "@/lib/tts-service";
 
 export default function EditAgentPage() {
   const routeParams = useParams<{ agentId: string }>();
@@ -93,79 +94,27 @@ export default function EditAgentPage() {
     return matchesLang && matchesGender && matchesSearch;
   });
 
-  const playVoiceSample = (voice: NeuralVoicePersona, customText?: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      addToast({
-        title: "Audio Preview Simulation",
-        description: `Voice: ${voice.voiceName} (${voice.language})`,
-        type: "info",
-      });
-      return;
-    }
-
+  const playVoiceSample = async (voice: NeuralVoicePersona, customText?: string) => {
     if (playingVoiceId === voice.id && !customText) {
-      window.speechSynthesis.cancel();
+      stopNeuralAudio();
       setPlayingVoiceId(null);
       return;
     }
 
-    window.speechSynthesis.cancel();
     const textToSpeak = customText || greeting || voice.sampleText;
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = voice.langCode;
-    utterance.rate = Math.max(0.8, Math.min(1.5, voiceSpeed));
-
-    // Get system voices and filter by target language and gender
-    const allVoices = window.speechSynthesis.getVoices();
-    const baseLang = voice.langCode.toLowerCase().split("-")[0];
-    const langVoices = allVoices.filter((v) =>
-      v.lang.toLowerCase().replace("_", "-").startsWith(baseLang)
-    );
-
-    const femaleKeywords = [
-      "zira", "jenny", "aria", "samantha", "victoria", "susan", "karen", "female",
-      "natural", "eva", "helena", "laura", "maria", "paulina", "julie", "hortense",
-      "hedda", "katja", "elsa", "alice", "hazel", "serena", "lisa", "katherine", "sonia", "monica"
-    ];
-    const maleKeywords = [
-      "david", "guy", "mark", "richard", "george", "male", "alex", "raul", "paul",
-      "stefan", "hans", "cosimo", "diego", "james", "michael", "tom", "daniel", "pablo"
-    ];
-
-    let targetVoice: SpeechSynthesisVoice | undefined;
-
-    if (voice.gender === "female") {
-      targetVoice =
-        langVoices.find((v) => femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices.find((v) => !maleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        allVoices.find((v) => femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices[0];
-
-      utterance.pitch = 1.25;
-    } else {
-      targetVoice =
-        langVoices.find((v) => maleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices.find((v) => !femaleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        allVoices.find((v) => maleKeywords.some((k) => v.name.toLowerCase().includes(k))) ||
-        langVoices[0];
-
-      utterance.pitch = 0.88;
-    }
-
-    if (targetVoice) {
-      utterance.voice = targetVoice;
-    }
-
-    utterance.onstart = () => setPlayingVoiceId(voice.id);
-    utterance.onend = () => setPlayingVoiceId(null);
-    utterance.onerror = () => setPlayingVoiceId(null);
-
-    window.speechSynthesis.speak(utterance);
     addToast({
-      title: `Playing Voice Sample: ${voice.flag} ${voice.voiceName}`,
-      description: `Gender: ${voice.gender.toUpperCase()} • Language: ${voice.language}`,
+      title: `Auditioning: ${voice.flag} ${voice.voiceName}`,
+      description: `Kokoro Neural Model • Speed: ${voiceSpeed}x`,
       type: "info",
     });
+
+    await playKokoroNeuralAudio(
+      textToSpeak,
+      voice.id,
+      voiceSpeed,
+      () => setPlayingVoiceId(voice.id),
+      () => setPlayingVoiceId(null)
+    );
   };
 
   const activeLlmOption = llmOptions.find((m) => m.id === selectedLlmId) || llmOptions[0] || LLM_MODEL_OPTIONS[0];
