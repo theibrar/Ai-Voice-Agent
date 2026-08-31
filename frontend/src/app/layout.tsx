@@ -22,6 +22,14 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Apex Voice AI | Enterprise Voice Agent Platform",
   description: "Next-generation AI voice agent control panel, campaign management, live call telemetry, and flow orchestration.",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

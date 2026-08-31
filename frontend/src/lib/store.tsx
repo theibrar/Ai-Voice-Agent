@@ -1212,7 +1212,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [addToast, refreshPhoneNumbers]);
 
-  useEffect(() => {
+  const refreshAllData = useCallback(() => {
     refreshAgents();
     refreshAppointments();
     refreshContacts();
@@ -1228,12 +1228,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     refreshAnnouncements();
     refreshPhoneNumbers();
     refreshCalls();
+  }, [
+    refreshAgents,
+    refreshAppointments,
+    refreshContacts,
+    refreshCampaigns,
+    refreshWebsiteWidgets,
+    refreshKnowledgeSources,
+    refreshLlmModels,
+    refreshFunnelSteps,
+    refreshAnalyticsOverview,
+    refreshAbExperiments,
+    refreshWebhooks,
+    refreshGoogleStatus,
+    refreshAnnouncements,
+    refreshPhoneNumbers,
+    refreshCalls,
+  ]);
+
+  useEffect(() => {
+    refreshAllData();
+
+    const handleAuthChanged = () => {
+      refreshAllData();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("app:auth_updated", handleAuthChanged);
+    }
 
     const interval = setInterval(() => {
       refreshAnnouncements();
+      refreshCalls();
     }, 8000);
-    return () => clearInterval(interval);
-  }, [refreshAgents, refreshAppointments, refreshContacts, refreshCampaigns, refreshWebsiteWidgets, refreshKnowledgeSources, refreshLlmModels, refreshFunnelSteps, refreshAnalyticsOverview, refreshAbExperiments, refreshWebhooks, refreshGoogleStatus, refreshAnnouncements, refreshPhoneNumbers, refreshCalls]);
+
+    return () => {
+      clearInterval(interval);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("app:auth_updated", handleAuthChanged);
+      }
+    };
+  }, [refreshAllData, refreshAnnouncements, refreshCalls]);
 
   const createAppointment = useCallback(async (newApt: Appointment) => {
     setAppointments((prev) => [newApt, ...prev.filter((a) => a.id !== newApt.id)]);

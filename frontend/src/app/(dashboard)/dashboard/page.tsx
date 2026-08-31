@@ -86,11 +86,16 @@ export default function DashboardPage() {
     appointments,
     setAppointments,
     createAppointment,
-    updateAppointmentStatus,
     toggleAgentStatus,
     toggleCampaignStatus,
     activeCallCount,
     addToast,
+    refreshCalls,
+    refreshAppointments,
+    refreshContacts,
+    refreshAgents,
+    refreshCampaigns,
+    refreshAnalyticsOverview,
   } = useAppStore();
 
   const [activeSegment, setActiveSegment] = useState<"overview" | "supervisor" | "funnels" | "ab_lab" | "smart_amd">("overview");
@@ -257,6 +262,16 @@ export default function DashboardPage() {
       year: "numeric",
     });
   }, []);
+
+  // Immediate data hydration on mount and login
+  useEffect(() => {
+    refreshAnalyticsOverview("30d");
+    refreshCalls();
+    refreshAppointments();
+    refreshContacts();
+    refreshAgents();
+    refreshCampaigns();
+  }, [refreshAnalyticsOverview, refreshCalls, refreshAppointments, refreshContacts, refreshAgents, refreshCampaigns]);
 
   // Fetch Real Live Weather using Open-Meteo & Browser Timezone Geolocation
   useEffect(() => {

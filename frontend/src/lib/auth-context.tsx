@@ -80,6 +80,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsPreview(!!data.isPreview);
         setSuperAdminId(data.superAdminId || null);
         setIsAuthenticated(true);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("app:auth_updated", { detail: data }));
+        }
       } else {
         setUser(null);
         setTenant(null);
@@ -123,6 +126,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       await refreshAuth();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("app:auth_updated", { detail: data }));
+      }
       const isSuperAdmin = data.user?.role === "super_admin" || email.includes("superadmin");
       return { success: true, isSuperAdmin };
     } catch (err: any) {
