@@ -133,6 +133,11 @@ export default function EditAgentPage() {
       ...agent,
       name,
       description,
+      llmModel: activeLlmOption.fullName,
+      greeting,
+      systemPrompt,
+      assignedPhoneNumber: selectedPhone ? (selectedPhone.formattedNumber || selectedPhone.number) : undefined,
+      assignedPhoneNumberId: selectedPhone?.id || undefined,
       voice: {
         provider: "Kokoro Neural",
         voiceId: selectedVoice.id,
