@@ -71,11 +71,9 @@ import {
   Camera,
   X,
 } from "lucide-react";
-import { LiveVoiceCallModal } from "@/components/live-voice-call-modal";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [liveCallModalOpen, setLiveCallModalOpen] = useState(false);
   const {
     activeWorkspace,
     language,
@@ -529,23 +527,7 @@ export default function DashboardPage() {
             <p className="text-xs md:text-sm text-white/85 max-w-xl leading-relaxed">
               {translate("Real-time conversational intelligence with ultra-low latency STT, GPT-4o reasoning, and automated CRM & calendar scheduling.", language)}
             </p>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setLiveCallModalOpen(true)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#3157D5] hover:bg-[#EEF2FD] rounded-xl text-xs font-black shadow-lg shadow-black/10 transition-all transform hover:-translate-y-0.5 cursor-pointer"
-              >
-                <Mic className="w-4 h-4 text-[#3157D5]" />
-                <span>🎙️ Test Live Voice Call (Use Microphone)</span>
-              </button>
-            </div>
           </div>
-
-          {/* Live Voice Call Modal */}
-          <LiveVoiceCallModal
-            isOpen={liveCallModalOpen}
-            onClose={() => setLiveCallModalOpen(false)}
-          />
 
           {/* Bottom Row: Quick Stats Badges */}
           <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/20 z-10">

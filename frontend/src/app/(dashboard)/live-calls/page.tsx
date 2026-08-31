@@ -21,14 +21,11 @@ import {
   PhoneOff,
   Radio,
   SlidersHorizontal,
-  Mic,
 } from "lucide-react";
-import { LiveVoiceCallModal } from "@/components/live-voice-call-modal";
 
 export default function LiveCallsPage() {
   const { calls, agents, campaigns, endCall, holdCall, activeCallCount } = useAppStore();
 
-  const [liveCallModalOpen, setLiveCallModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [agentFilter, setAgentFilter] = useState<string>("all");
@@ -67,20 +64,6 @@ export default function LiveCallsPage() {
             {activeCallCount} Active Concurrent Calls
           </span>
         }
-        action={
-          <button
-            onClick={() => setLiveCallModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#3157D5] hover:bg-[#2646B8] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
-          >
-            <Mic className="w-4 h-4" />
-            <span>🎙️ Start Live Voice Call Test (Microphone)</span>
-          </button>
-        }
-      />
-
-      <LiveVoiceCallModal
-        isOpen={liveCallModalOpen}
-        onClose={() => setLiveCallModalOpen(false)}
       />
 
       {/* Filter & Control Bar */}

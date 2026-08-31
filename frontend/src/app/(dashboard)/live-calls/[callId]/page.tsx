@@ -40,7 +40,6 @@ import {
 } from "lucide-react";
 
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
-import { LiveVoiceCallModal } from "@/components/live-voice-call-modal";
 
 interface LiveCallDetailPageProps {
   params: Promise<{ callId: string }>;
@@ -49,7 +48,6 @@ interface LiveCallDetailPageProps {
 export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const [liveCallModalOpen, setLiveCallModalOpen] = useState(false);
   const {
     calls,
     endCall,
@@ -217,15 +215,6 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
 
         {/* Live Call Control Deck */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Real Microphone Live Call Test */}
-          <button
-            onClick={() => setLiveCallModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-[#3157D5] hover:bg-[#2646B8] text-white shadow-xs transition-all cursor-pointer"
-          >
-            <Mic className="w-3.5 h-3.5" />
-            <span>🎙️ Speak with Agent (Mic)</span>
-          </button>
-
           {/* Mute Button */}
           <button
             onClick={() => {
@@ -687,14 +676,6 @@ export default function LiveCallDetailPage({ params }: LiveCallDetailPageProps) 
           </div>
         </div>
       )}
-
-      {/* Live Voice Call Simulator Modal */}
-      <LiveVoiceCallModal
-        isOpen={liveCallModalOpen}
-        onClose={() => setLiveCallModalOpen(false)}
-        initialAgentName={call.agentName}
-        initialPhoneNumber={call.callerNumber}
-      />
     </div>
   );
 }

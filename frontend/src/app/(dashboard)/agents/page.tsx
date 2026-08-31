@@ -24,7 +24,6 @@ import {
   Mic,
 } from "lucide-react";
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
-import { LiveVoiceCallModal } from "@/components/live-voice-call-modal";
 
 export default function AgentsPage() {
   const { agents, toggleAgentStatus, duplicateAgent, deleteAgent } = useAppStore();
@@ -34,7 +33,6 @@ export default function AgentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"most_calls" | "newest" | "highest_success">("most_calls");
   const [deleteModalAgent, setDeleteModalAgent] = useState<any | null>(null);
-  const [activeTestAgent, setActiveTestAgent] = useState<string | null>(null);
 
   const filteredAgents = agents
     .filter((agent) => {
@@ -265,14 +263,6 @@ export default function AgentsPage() {
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setActiveTestAgent(agent.name)}
-                      className="px-2.5 py-1 text-xs font-bold bg-[#3157D5] text-white hover:bg-[#2646B8] rounded-lg transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
-                    >
-                      <Mic className="w-3 h-3" />
-                      <span>Mic Call</span>
-                    </button>
-
                     <Link
                       href={`/agents/${agent.id}/test`}
                       className="px-2.5 py-1 text-xs font-semibold bg-[#EEF2FD] text-[#3157D5] hover:bg-[#E0E7FB] rounded-lg transition-colors flex items-center gap-1"
@@ -394,13 +384,6 @@ export default function AgentsPage() {
           </div>
         </div>
       )}
-
-      {/* Live Voice Call Simulator Modal */}
-      <LiveVoiceCallModal
-        isOpen={!!activeTestAgent}
-        onClose={() => setActiveTestAgent(null)}
-        initialAgentName={activeTestAgent || "Rachel (Enterprise SDR)"}
-      />
 
       {/* Professional Delete Confirmation Dialog */}
       <ConfirmDeleteModal
