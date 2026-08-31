@@ -24,54 +24,45 @@ export async function playKokoroNeuralAudio(
     window.speechSynthesis.cancel();
   }
 
-  // Endpoints to attempt
-  const ttsEndpoints = [
-    "https://server.ibrasoft.com/api/v1/tts/synthesize",
-    "http://85.218.235.6:8088/synthesize",
-  ];
+  // Try GPU Neural Endpoint with ultra-fast timeout (600ms)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600);
 
-  for (const endpoint of ttsEndpoints) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch("https://server.ibrasoft.com/api/v1/tts/synthesize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice, speed }),
+      signal: controller.signal,
+    }).catch(() => null);
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice, speed }),
-        signal: controller.signal,
-      });
+    clearTimeout(timeoutId);
 
-      clearTimeout(timeoutId);
+    if (res && res.ok) {
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      activeAudioElement = audio;
 
-      if (res.ok) {
-        const audioBlob = await res.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        activeAudioElement = audio;
+      audio.onplay = () => {
+        if (onStart) onStart();
+      };
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        activeAudioElement = null;
+        if (onEnd) onEnd();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        activeAudioElement = null;
+        if (onEnd) onEnd();
+      };
 
-        audio.onplay = () => {
-          if (onStart) onStart();
-        };
-
-        audio.onended = () => {
-          URL.revokeObjectURL(audioUrl);
-          activeAudioElement = null;
-          if (onEnd) onEnd();
-        };
-
-        audio.onerror = () => {
-          URL.revokeObjectURL(audioUrl);
-          activeAudioElement = null;
-          if (onEnd) onEnd();
-        };
-
-        await audio.play();
-        return true;
-      }
-    } catch {
-      // Try next endpoint or fallback
+      await audio.play();
+      return true;
     }
+  } catch {
+    // Proceed immediately to zero-latency instant audio
   }
 
   // Fallback to browser SpeechSynthesis if remote server is unreachable
