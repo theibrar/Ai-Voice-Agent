@@ -186,6 +186,27 @@ with gr.Blocks(title="Apex Enterprise Voice AI - GPU Testbench", theme=gr.themes
                 test_barge_btn = gr.Button("Test VAD Calibration Status", size="sm")
                 test_barge_btn.click(test_barge_in_simulation, outputs=bargein_status)
 
+            with gr.Accordion("🛠️ Test Tools & Cognitive Fillers", open=False):
+                gr.Markdown("**Simulate Tool Calling Latency Bridge & Thinking Foley:**")
+                tool_choice = gr.Radio(choices=["Book Calendar Appointment", "CRM Customer Lookup", "Check Solar Rebate"], value="Book Calendar Appointment", label="Simulate Tool")
+                test_tool_btn = gr.Button("Trigger Tool with Cognitive Filler", size="sm")
+                tool_output_audio = gr.Audio(label="Played Cognitive Filler Phrase", autoplay=True)
+                tool_status = gr.Markdown()
+
+                def simulate_tool_call(tool_name):
+                    try:
+                        res = requests.get(f"{TTS_URL}/filler", timeout=5)
+                        if res.ok:
+                            wav_bytes = res.content
+                            phrase = res.headers.get("X-Filler-Phrase", "One moment...")
+                            data, sr = sf.read(io.BytesIO(wav_bytes))
+                            return (sr, data), f"✅ **Tool:** `{tool_name}` executing in background | **Filler Spoken:** *\"{phrase}\"*"
+                    except Exception as e:
+                        return None, f"Error: {e}"
+                    return None, "Ready"
+
+                test_tool_btn.click(simulate_tool_call, inputs=tool_choice, outputs=[tool_output_audio, tool_status])
+
     run_btn.click(
         fn=run_voice_pipeline,
         inputs=[mic_input, text_input, voice_dropdown, emotion_dropdown, sys_prompt],
@@ -194,3 +215,4 @@ with gr.Blocks(title="Apex Enterprise Voice AI - GPU Testbench", theme=gr.themes
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
+
