@@ -322,10 +322,13 @@ func (h *PhoneNumbersHandler) ProvisionPhoneNumber(c *gin.Context) {
 	carrier, apiKey := h.getCarrierAPIKey(ctx)
 
 	if apiKey != "" && (carrier == "telnyx" || strings.HasPrefix(apiKey, "KEY")) {
+		// 1. Order Phone Number with Ai_voicebot SIP Connection automatically
 		orderPayload := map[string]interface{}{
 			"phone_numbers": []map[string]string{
 				{"phone_number": req.PhoneNumber},
 			},
+			"connection_id": "3014058183544014724", // Ai_voicebot SIP FQDN Trunk to GPU
+			"messaging_profile_id": "40019f7a-a307-4b65-829a-72bda463cea9", // IbraSoft SMS Profile
 		}
 		bodyJSON, _ := json.Marshal(orderPayload)
 
