@@ -232,17 +232,19 @@ async def stream_speech(req: SynthesizeRequest, request: Request):
     voice_name = req.voice or "af_bella"
 
     async def audio_generator() -> AsyncGenerator[bytes, None]:
-        # Split into short conversational sentences for sub-150ms first-chunk delivery
-        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", clean_text) if s.strip()]
-        if not sentences:
-            sentences = [clean_text]
+        # Split into short clauses/phrases by commas & punctuation for sub-60ms first-chunk delivery
+        clauses = [c.strip() for c in re.split(r"(?<=[,.!?;])\s+", clean_text) if c.strip()]
+        if not clauses:
+            clauses = [clean_text]
 
-        for s in sentences:
-            samples, sr = kokoro.create(s, voice=voice_name, speed=effective_speed, lang=req.lang or "en-us")
+        for clause in clauses:
+            if not clause:
+                continue
+            samples, sr = kokoro.create(clause, voice=voice_name, speed=effective_speed, lang=req.lang or "en-us")
             # Convert float32 samples to 16-bit PCM
             pcm16 = (samples * 32767).astype(np.int16).tobytes()
             yield pcm16
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.005)
 
     return StreamingResponse(audio_generator(), media_type="application/octet-stream", headers={
         "Transfer-Encoding": "chunked",
