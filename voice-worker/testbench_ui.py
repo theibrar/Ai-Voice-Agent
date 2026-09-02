@@ -204,38 +204,34 @@ def check_vllm_status():
         pass
     return "🟡 **vLLM Engine:** Loading weights or downloading from HuggingFace (~15GB). Models will become active once download completes!"
 
-def stream_chat_response(user_message, history, system_prompt, temperature):
-    if not user_message or not user_message.strip():
-        yield history, "", ""
+def stream_llm_chat(message, history, system_prompt, max_tokens, temperature):
+    if not message.strip():
+        yield "", "Enter a message to test."
         return
 
-    history = history or []
-    history.append((user_message, ""))
-    yield history, "", "⚡ Initializing vLLM stream..."
+    t_start = time.time()
+    first_token_time = 0
+    token_count = 0
 
     messages = [{"role": "system", "content": system_prompt}]
-    for u_msg, b_msg in history[:-1]:
-        if u_msg:
-            messages.append({"role": "user", "content": u_msg})
-        if b_msg:
-            messages.append({"role": "assistant", "content": b_msg})
-    messages.append({"role": "user", "content": user_message})
+    if history:
+        for user_h, assistant_h in history:
+            messages.append({"role": "user", "content": user_h})
+            if assistant_h:
+                messages.append({"role": "assistant", "content": assistant_h})
+    messages.append({"role": "user", "content": message})
 
-    active_model = resolve_active_model()
+    active_model = get_vllm_model_name()
+    headers = {"Authorization": f"Bearer {API_KEY}"}
     payload = {
         "model": active_model,
         "messages": messages,
-        "temperature": float(temperature),
-        "max_tokens": 512,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
         "stream": True
     }
-    headers = {"Authorization": f"Bearer {API_KEY}"}
 
-    t0 = time.time()
-    ttft = 0.0
-    token_count = 0
-    accumulated_text = ""
-
+    response_text = ""
     try:
         res = requests.post(f"{VLLM_URL}/chat/completions", headers=headers, json=payload, stream=True, timeout=30)
         if res.ok:
@@ -244,34 +240,30 @@ def stream_chat_response(user_message, history, system_prompt, temperature):
                 if line:
                     line_str = line.decode('utf-8') if isinstance(line, bytes) else line
                     if line_str.startswith("data: ") and line_str != "data: [DONE]":
-                        if ttft == 0:
-                            ttft = round((time.time() - t0) * 1000, 1)
+                        if first_token_time == 0:
+                            first_token_time = round((time.time() - t_start) * 1000, 1)
                         try:
-                            chunk_data = json.loads(line_str[6:])
-                            delta_content = chunk_data["choices"][0].get("delta", {}).get("content", "")
-                            if delta_content:
-                                accumulated_text += delta_content
+                            chunk = json.loads(line_str[6:])
+                            delta = chunk["choices"][0].get("delta", {}).get("content", "")
+                            if delta:
+                                response_text += delta
                                 token_count += 1
-                                history[-1] = (user_message, accumulated_text)
-                                elapsed = max(0.001, time.time() - t0)
-                                speed = round(token_count / elapsed, 1)
-                                yield history, "", f"⚡ **TTFT:** {ttft} ms | **Speed:** {speed} tok/s | **Tokens:** {token_count} | **Model:** {active_model}"
+                                t_elapsed = time.time() - t_start
+                                tok_per_sec = round(token_count / t_elapsed, 1) if t_elapsed > 0 else 0.0
+                                telemetry_str = f"⚡ **First Token (TTFT):** `{first_token_time} ms` | 🚀 **Speed:** `{tok_per_sec} tok/s` | 🔢 **Tokens Generated:** `{token_count}` | ⏱️ **Total Time:** `{round(t_elapsed*1000, 1)} ms`"
+                                yield response_text, telemetry_str
                         except Exception:
                             pass
         else:
-            accumulated_text = f"Error from vLLM API: {res.text[:120]}"
-            history[-1] = (user_message, accumulated_text)
-            yield history, "", "🔴 Connection Error"
+            yield f"Error from vLLM: {res.text}", "vLLM Error"
     except Exception as e:
-        accumulated_text = f"Request Exception: {e}"
-        history[-1] = (user_message, accumulated_text)
-        yield history, "", "🔴 Exception Error"
+        yield f"Connection Error: {e}", "Connection Error"
 
 # Build Gradio Interface
-with gr.Blocks(title="Apex Enterprise Voice AI - GPU Testbench", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="Apex Enterprise Voice AI & LLM Benchmark", theme=gr.themes.Soft()) as demo:
     gr.Markdown("""
-    # 🚀 Apex Enterprise Voice AI & vLLM Chat Testbench
-    **Instance:** 1x NVIDIA RTX 3090 (24GB VRAM) | **Public IP:** `212.93.107.107`
+    # 🚀 Apex Enterprise GPU Voice AI & LLM Benchmark Studio
+    **Hardware:** 1x NVIDIA RTX 3090 (24GB VRAM) | **Public IP:** `212.93.107.107` | **API Key:** `sk-ibrasoft-gpu-voice`
     """)
 
     with gr.Row():
@@ -279,38 +271,60 @@ with gr.Blocks(title="Apex Enterprise Voice AI - GPU Testbench", theme=gr.themes
         vllm_banner = gr.Markdown(value=check_vllm_status())
 
     with gr.Tabs():
-        with gr.Tab("💬 Dedicated vLLM Text Chat UI (Qwen2.5-7B-Instruct-AWQ)"):
-            gr.Markdown("### ⚡ Live Token-Streaming LLM Test Interface")
-            chatbot = gr.Chatbot(label="Qwen2.5-7B-Instruct-AWQ Assistant", height=450)
+        with gr.TabItem("💬 Real-Time LLM Chat (Qwen2.5-7B)"):
+            gr.Markdown("### 🧠 Direct vLLM OpenAI API Chat & Performance Benchmark")
             
             with gr.Row():
-                chat_input = gr.Textbox(placeholder="Type your prompt here... (Press Enter to Send)", label="Your Prompt", lines=2, scale=8)
-                send_btn = gr.Button("🚀 Send to vLLM", variant="primary", scale=2)
+                with gr.Column(scale=7):
+                    chat_history = gr.Chatbot(label="Qwen2.5-7B-Instruct-AWQ Stream", height=450)
+                    chat_input = gr.Textbox(placeholder="Type your message here and press Enter (e.g. Write a Python function to sort a list)...", label="User Prompt", lines=2)
+                    chat_submit_btn = gr.Button("🚀 Send to Qwen2.5-7B", variant="primary", size="lg")
+                    llm_telemetry_box = gr.Markdown(value="⚡ **First Token (TTFT):** `--` | 🚀 **Speed:** `-- tok/s` | 🔢 **Tokens Generated:** `--` | ⏱️ **Total Time:** `--`")
 
-            metrics_banner = gr.Markdown("⚡ **TTFT:** -- ms | **Speed:** -- tok/s | **Tokens:** 0")
+                with gr.Column(scale=3):
+                    gr.Markdown("### ⚙️ Generation Parameters")
+                    chat_sys_prompt = gr.Textbox(
+                        label="System Prompt",
+                        value="You are Qwen2.5-7B-Instruct, a highly intelligent, precise, and helpful AI assistant running on an enterprise NVIDIA RTX 3090 GPU.",
+                        lines=4
+                    )
+                    chat_max_tokens = gr.Slider(minimum=32, maximum=2048, value=512, step=32, label="Max Output Tokens")
+                    chat_temp = gr.Slider(minimum=0.0, maximum=1.0, value=0.7, step=0.05, label="Temperature")
+                    clear_chat_btn = gr.Button("🗑️ Clear Chat History")
 
-            with gr.Row():
-                chat_sys_prompt = gr.Textbox(
-                    label="System Persona Prompt",
-                    value="You are a helpful, warm, and highly capable AI assistant powered by Qwen2.5-7B on NVIDIA RTX 3090.",
-                    scale=7
-                )
-                chat_temp = gr.Slider(minimum=0.1, maximum=1.5, value=0.7, step=0.1, label="Temperature", scale=3)
-                clear_chat_btn = gr.Button("🗑️ Clear Chat History", variant="secondary", scale=2)
+            def user_chat_submit(user_message, history):
+                return "", history + [[user_message, None]]
 
-            send_btn.click(
-                fn=stream_chat_response,
-                inputs=[chat_input, chatbot, chat_sys_prompt, chat_temp],
-                outputs=[chatbot, chat_input, metrics_banner]
+            def bot_chat_respond(history, system_prompt, max_tokens, temperature):
+                user_message = history[-1][0]
+                past_history = history[:-1]
+                for bot_reply, telemetry in stream_llm_chat(user_message, past_history, system_prompt, max_tokens, temperature):
+                    history[-1][1] = bot_reply
+                    yield history, telemetry
+
+            chat_submit_btn.click(
+                user_chat_submit,
+                inputs=[chat_input, chat_history],
+                outputs=[chat_input, chat_history]
+            ).then(
+                bot_chat_respond,
+                inputs=[chat_history, chat_sys_prompt, chat_max_tokens, chat_temp],
+                outputs=[chat_history, llm_telemetry_box]
             )
+
             chat_input.submit(
-                fn=stream_chat_response,
-                inputs=[chat_input, chatbot, chat_sys_prompt, chat_temp],
-                outputs=[chatbot, chat_input, metrics_banner]
+                user_chat_submit,
+                inputs=[chat_input, chat_history],
+                outputs=[chat_input, chat_history]
+            ).then(
+                bot_chat_respond,
+                inputs=[chat_history, chat_sys_prompt, chat_max_tokens, chat_temp],
+                outputs=[chat_history, llm_telemetry_box]
             )
-            clear_chat_btn.click(lambda: ([], "", "⚡ Chat History Cleared"), outputs=[chatbot, chat_input, metrics_banner])
 
-        with gr.Tab("🎙️ Real-Time Voice AI Pipeline (Mic & Audio)"):
+            clear_chat_btn.click(lambda: ([], "⚡ **First Token (TTFT):** `--` | 🚀 **Speed:** `-- tok/s` | 🔢 **Tokens Generated:** `--` | ⏱️ **Total Time:** `--`"), outputs=[chat_history, llm_telemetry_box])
+
+        with gr.TabItem("🎙️ Voice AI Pipeline Testbench"):
             with gr.Row():
                 with gr.Column(scale=5):
                     gr.Markdown("### 1. Test Voice Pipeline (Mic or Text)")
