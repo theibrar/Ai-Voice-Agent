@@ -1,0 +1,18 @@
+api_key: devkey
+api_secret: secret_livekit_voice_key_2026
+ws_url: ws://livekit:7880
+
+sip_port: 5060
+rtp_port_range_start: 50201
+rtp_port_range_end: 50400
+
+logging:
+  level: info
+
+# Inbound Calling Rules: Inbound SIP calls automatically create a room and dispatch an AI Agent
+inbound_rules:
+  - name: "Enterprise Customer Inbound"
+    numbers:
+      - "+14156390491"
+      - "*"
+    room_prefix: "call-"

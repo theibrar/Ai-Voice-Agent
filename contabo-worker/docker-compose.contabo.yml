@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  # 1. LiveKit SFU Server (WebRTC Rooms & Signaling)
+  livekit:
+    image: livekit/livekit-server:v1.7.2
+    container_name: livekit-server
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    environment:
+      - LIVEKIT_KEYS=devkey:secret_livekit_voice_key_2026
+    depends_on:
+      - redis
+
+  # 2. LiveKit SIP Gateway (Telephony Inbound & Outbound)
+  livekit-sip:
+    image: livekit/sip:v1.0.4
+    container_name: livekit-sip
+    restart: unless-stopped
+    command: --config /etc/livekit-sip.yaml
+    network_mode: host
+    volumes:
+      - ./livekit-sip.yaml:/etc/livekit-sip.yaml:ro
+    depends_on:
+      - livekit
+
+  # 3. Redis In-Memory State & Cache
+  redis:
+    image: redis:7-alpine
+    container_name: livekit-redis
+    restart: unless-stopped
+    network_mode: host
+
+  # 4. Enterprise LiveKit Agent Worker (Pipeline to Vast.ai GPU)
+  agent-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: livekit-agent-worker
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - LIVEKIT_URL=ws://127.0.0.1:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret_livekit_voice_key_2026
+      - GPU_HOST=173.185.79.174
+      - GPU_API_KEY=sk-ibrasoft-gpu-voice
+      - STT_URL=http://173.185.79.174:46819
+      - LLM_URL=http://173.185.79.174:46409/v1
+      - TTS_URL=http://173.185.79.174:47830
+      - VAD_URL=http://173.185.79.174:49760
+      - BACKEND_API_URL=http://127.0.0.1:8080/api/v1
+      - WORKER_AUTH_TOKEN=super_secret_worker_auth_token_2026
+    depends_on:
+      - livekit

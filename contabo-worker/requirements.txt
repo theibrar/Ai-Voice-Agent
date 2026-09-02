@@ -1,0 +1,23 @@
+# LiveKit Real-Time WebRTC & Telephony Stack
+livekit>=0.18.2
+livekit-agents>=0.12.0
+livekit-plugins-silero>=0.7.0
+
+# Asynchronous High-Performance Networking & HTTP Client Pooling
+aiohttp>=3.10.5
+requests>=2.32.3
+websockets>=13.1
+
+# Data Validation & Schemas
+pydantic>=2.9.2
+python-dotenv>=1.0.1
+
+# Logging & Telemetry
+loguru>=0.7.2
+rich>=13.8.1
+psutil>=6.0.0
+
+# Audio Helpers & DSP
+soundfile>=0.12.1
+numpy>=1.26.4
+scipy>=1.11.4
