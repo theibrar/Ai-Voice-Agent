@@ -204,10 +204,73 @@ def check_vllm_status():
         pass
     return "🟡 **vLLM Engine:** Loading weights or downloading from HuggingFace (~15GB). Models will become active once download completes!"
 
+def stream_chat_response(user_message, history, system_prompt, temperature):
+    if not user_message or not user_message.strip():
+        yield history, "", ""
+        return
+
+    history = history or []
+    history.append((user_message, ""))
+    yield history, "", "⚡ Initializing vLLM stream..."
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for u_msg, b_msg in history[:-1]:
+        if u_msg:
+            messages.append({"role": "user", "content": u_msg})
+        if b_msg:
+            messages.append({"role": "assistant", "content": b_msg})
+    messages.append({"role": "user", "content": user_message})
+
+    active_model = resolve_active_model()
+    payload = {
+        "model": active_model,
+        "messages": messages,
+        "temperature": float(temperature),
+        "max_tokens": 512,
+        "stream": True
+    }
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+
+    t0 = time.time()
+    ttft = 0.0
+    token_count = 0
+    accumulated_text = ""
+
+    try:
+        res = requests.post(f"{VLLM_URL}/chat/completions", headers=headers, json=payload, stream=True, timeout=30)
+        if res.ok:
+            import json
+            for line in res.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8') if isinstance(line, bytes) else line
+                    if line_str.startswith("data: ") and line_str != "data: [DONE]":
+                        if ttft == 0:
+                            ttft = round((time.time() - t0) * 1000, 1)
+                        try:
+                            chunk_data = json.loads(line_str[6:])
+                            delta_content = chunk_data["choices"][0].get("delta", {}).get("content", "")
+                            if delta_content:
+                                accumulated_text += delta_content
+                                token_count += 1
+                                history[-1] = (user_message, accumulated_text)
+                                elapsed = max(0.001, time.time() - t0)
+                                speed = round(token_count / elapsed, 1)
+                                yield history, "", f"⚡ **TTFT:** {ttft} ms | **Speed:** {speed} tok/s | **Tokens:** {token_count} | **Model:** {active_model}"
+                        except Exception:
+                            pass
+        else:
+            accumulated_text = f"Error from vLLM API: {res.text[:120]}"
+            history[-1] = (user_message, accumulated_text)
+            yield history, "", "🔴 Connection Error"
+    except Exception as e:
+        accumulated_text = f"Request Exception: {e}"
+        history[-1] = (user_message, accumulated_text)
+        yield history, "", "🔴 Exception Error"
+
 # Build Gradio Interface
 with gr.Blocks(title="Apex Enterprise Voice AI - GPU Testbench", theme=gr.themes.Soft()) as demo:
     gr.Markdown("""
-    # 🎙️ Apex Enterprise Voice AI - GPU Real-Time Testbench
+    # 🚀 Apex Enterprise Voice AI & vLLM Chat Testbench
     **Instance:** 1x NVIDIA RTX 3090 (24GB VRAM) | **Public IP:** `212.93.107.107`
     """)
 
@@ -215,75 +278,108 @@ with gr.Blocks(title="Apex Enterprise Voice AI - GPU Testbench", theme=gr.themes
         telemetry_banner = gr.Markdown(value=get_gpu_telemetry())
         vllm_banner = gr.Markdown(value=check_vllm_status())
 
-    with gr.Row():
-        with gr.Column(scale=5):
-            gr.Markdown("### 1. Test Voice Pipeline (Mic or Text)")
-            mic_input = gr.Audio(sources=["microphone", "upload"], type="numpy", label="Speak into Microphone or Upload Audio")
-            text_input = gr.Textbox(label="Or Type Test Message", placeholder="e.g. Can you tell me about your pricing?")
+    with gr.Tabs():
+        with gr.Tab("💬 Dedicated vLLM Text Chat UI (Qwen2.5-7B-Instruct-AWQ)"):
+            gr.Markdown("### ⚡ Live Token-Streaming LLM Test Interface")
+            chatbot = gr.Chatbot(label="Qwen2.5-7B-Instruct-AWQ Assistant", height=450)
             
             with gr.Row():
-                voice_dropdown = gr.Dropdown(
-                    label="Kokoro Neural Voice",
-                    choices=["af_bella", "af_sarah", "af_heart", "am_adam", "am_michael", "bf_emma", "bf_isabella"],
-                    value="af_bella"
-                )
-                emotion_dropdown = gr.Dropdown(
-                    label="Emotional Prosody Tag",
-                    choices=["neutral", "empathy", "cheerful", "urgent", "calm"],
-                    value="neutral"
-                )
+                chat_input = gr.Textbox(placeholder="Type your prompt here... (Press Enter to Send)", label="Your Prompt", lines=2, scale=8)
+                send_btn = gr.Button("🚀 Send to vLLM", variant="primary", scale=2)
 
-            sys_prompt = gr.Textbox(
-                label="Agent System Persona Prompt",
-                value="You are an elite, warm, and highly professional inbound voice specialist. Answer in 1-2 spoken sentences.",
-                lines=2
+            metrics_banner = gr.Markdown("⚡ **TTFT:** -- ms | **Speed:** -- tok/s | **Tokens:** 0")
+
+            with gr.Row():
+                chat_sys_prompt = gr.Textbox(
+                    label="System Persona Prompt",
+                    value="You are a helpful, warm, and highly capable AI assistant powered by Qwen2.5-7B on NVIDIA RTX 3090.",
+                    scale=7
+                )
+                chat_temp = gr.Slider(minimum=0.1, maximum=1.5, value=0.7, step=0.1, label="Temperature", scale=3)
+                clear_chat_btn = gr.Button("🗑️ Clear Chat History", variant="secondary", scale=2)
+
+            send_btn.click(
+                fn=stream_chat_response,
+                inputs=[chat_input, chatbot, chat_sys_prompt, chat_temp],
+                outputs=[chatbot, chat_input, metrics_banner]
             )
+            chat_input.submit(
+                fn=stream_chat_response,
+                inputs=[chat_input, chatbot, chat_sys_prompt, chat_temp],
+                outputs=[chatbot, chat_input, metrics_banner]
+            )
+            clear_chat_btn.click(lambda: ([], "", "⚡ Chat History Cleared"), outputs=[chatbot, chat_input, metrics_banner])
 
-            run_btn = gr.Button("🚀 Run Full AI Voice Turn", variant="primary", size="lg")
-
-        with gr.Column(scale=5):
-            gr.Markdown("### 2. Audio Response & Latency Metrics")
-            audio_out = gr.Audio(label="Agent Spoken Audio Response", autoplay=True)
-            dialogue_transcript = gr.Markdown(label="Conversation Transcript")
-
+        with gr.Tab("🎙️ Real-Time Voice AI Pipeline (Mic & Audio)"):
             with gr.Row():
-                stt_metric = gr.Textbox(label="STT Latency", value="--")
-                llm_metric = gr.Textbox(label="LLM TTFT", value="--")
-                tts_metric = gr.Textbox(label="TTS TTFA", value="--")
-            
-            total_metric = gr.Markdown(value="**Total Turnaround: --**")
+                with gr.Column(scale=5):
+                    gr.Markdown("### 1. Test Voice Pipeline (Mic or Text)")
+                    mic_input = gr.Audio(sources=["microphone", "upload"], type="numpy", label="Speak into Microphone or Upload Audio")
+                    text_input = gr.Textbox(label="Or Type Test Message", placeholder="e.g. Can you tell me about your pricing?")
+                    
+                    with gr.Row():
+                        voice_dropdown = gr.Dropdown(
+                            label="Kokoro Neural Voice",
+                            choices=["af_bella", "af_sarah", "af_heart", "am_adam", "am_michael", "bf_emma", "bf_isabella"],
+                            value="af_bella"
+                        )
+                        emotion_dropdown = gr.Dropdown(
+                            label="Emotional Prosody Tag",
+                            choices=["neutral", "empathy", "cheerful", "urgent", "calm"],
+                            value="neutral"
+                        )
 
-            with gr.Accordion("⚙️ Barge-In & Interruption Monitor", open=True):
-                bargein_status = gr.Markdown(value="Silero-VAD active on GPU listening for interrupts during playback.")
-                test_barge_btn = gr.Button("Test VAD Calibration Status", size="sm")
-                test_barge_btn.click(test_barge_in_simulation, outputs=bargein_status)
+                    sys_prompt = gr.Textbox(
+                        label="Agent System Persona Prompt",
+                        value="You are an elite, warm, and highly professional inbound voice specialist. Answer in 1-2 spoken sentences.",
+                        lines=2
+                    )
 
-            with gr.Accordion("🛠️ Test Tools & Cognitive Fillers", open=False):
-                gr.Markdown("**Simulate Tool Calling Latency Bridge & Thinking Foley:**")
-                tool_choice = gr.Radio(choices=["Book Calendar Appointment", "CRM Customer Lookup", "Check Solar Rebate"], value="Book Calendar Appointment", label="Simulate Tool")
-                test_tool_btn = gr.Button("Trigger Tool with Cognitive Filler", size="sm")
-                tool_output_audio = gr.Audio(label="Played Cognitive Filler Phrase", autoplay=True)
-                tool_status = gr.Markdown()
+                    run_btn = gr.Button("🚀 Run Full AI Voice Turn", variant="primary", size="lg")
 
-                def simulate_tool_call(tool_name):
-                    try:
-                        res = requests.get(f"{TTS_URL}/filler", timeout=5)
-                        if res.ok:
-                            wav_bytes = res.content
-                            phrase = res.headers.get("X-Filler-Phrase", "One moment...")
-                            data, sr = sf.read(io.BytesIO(wav_bytes))
-                            return (sr, data), f"✅ **Tool:** `{tool_name}` executing in background | **Filler Spoken:** *\"{phrase}\"*"
-                    except Exception as e:
-                        return None, f"Error: {e}"
-                    return None, "Ready"
+                with gr.Column(scale=5):
+                    gr.Markdown("### 2. Audio Response & Latency Metrics")
+                    audio_out = gr.Audio(label="Agent Spoken Audio Response", autoplay=True)
+                    dialogue_transcript = gr.Markdown(label="Conversation Transcript")
 
-                test_tool_btn.click(simulate_tool_call, inputs=tool_choice, outputs=[tool_output_audio, tool_status])
+                    with gr.Row():
+                        stt_metric = gr.Textbox(label="STT Latency", value="--")
+                        llm_metric = gr.Textbox(label="LLM TTFT", value="--")
+                        tts_metric = gr.Textbox(label="TTS TTFA", value="--")
+                    
+                    total_metric = gr.Markdown(value="**Total Turnaround: --**")
 
-    run_btn.click(
-        fn=run_voice_pipeline,
-        inputs=[mic_input, text_input, voice_dropdown, emotion_dropdown, sys_prompt],
-        outputs=[audio_out, dialogue_transcript, stt_metric, llm_metric, tts_metric, total_metric]
-    )
+                    with gr.Accordion("⚙️ Barge-In & Interruption Monitor", open=True):
+                        bargein_status = gr.Markdown(value="Silero-VAD active on GPU listening for interrupts during playback.")
+                        test_barge_btn = gr.Button("Test VAD Calibration Status", size="sm")
+                        test_barge_btn.click(test_barge_in_simulation, outputs=bargein_status)
+
+                    with gr.Accordion("🛠️ Test Tools & Cognitive Fillers", open=False):
+                        gr.Markdown("**Simulate Tool Calling Latency Bridge & Thinking Foley:**")
+                        tool_choice = gr.Radio(choices=["Book Calendar Appointment", "CRM Customer Lookup", "Check Solar Rebate"], value="Book Calendar Appointment", label="Simulate Tool")
+                        test_tool_btn = gr.Button("Trigger Tool with Cognitive Filler", size="sm")
+                        tool_output_audio = gr.Audio(label="Played Cognitive Filler Phrase", autoplay=True)
+                        tool_status = gr.Markdown()
+
+                        def simulate_tool_call(tool_name):
+                            try:
+                                res = requests.get(f"{TTS_URL}/filler", timeout=5)
+                                if res.ok:
+                                    wav_bytes = res.content
+                                    phrase = res.headers.get("X-Filler-Phrase", "One moment...")
+                                    data, sr = sf.read(io.BytesIO(wav_bytes))
+                                    return (sr, data), f"✅ **Tool:** `{tool_name}` executing in background | **Filler Spoken:** *\"{phrase}\"*"
+                            except Exception as e:
+                                return None, f"Error: {e}"
+                            return None, "Ready"
+
+                        test_tool_btn.click(simulate_tool_call, inputs=tool_choice, outputs=[tool_output_audio, tool_status])
+
+            run_btn.click(
+                fn=run_voice_pipeline,
+                inputs=[mic_input, text_input, voice_dropdown, emotion_dropdown, sys_prompt],
+                outputs=[audio_out, dialogue_transcript, stt_metric, llm_metric, tts_metric, total_metric]
+            )
 
 if __name__ == "__main__":
     demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
