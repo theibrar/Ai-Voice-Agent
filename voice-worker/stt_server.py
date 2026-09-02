@@ -137,6 +137,7 @@ def health():
 # OpenAI-Compatible /v1/audio/transcriptions
 @app.post("/v1/audio/transcriptions")
 @app.post("/transcribe")
+@app.post("/stt/transcribe")
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: Optional[str] = Form("en"),
