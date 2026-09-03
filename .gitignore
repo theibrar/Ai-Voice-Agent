@@ -1,0 +1,46 @@
+# ─── Dependencies & Build ────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+*.log
+npm-debug.log*
+
+# ─── OS & IDE ────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Python ──────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+
+# ─── Docker ──────────────────────────────────────────
+# Don't ignore docker-compose files — they are needed
+
+# ─── Environment secrets (never commit) ──────────────
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# ─── Archives & temp ────────────────────────────────
+*.tar.gz
+*.zip
+*.bak
+
+# ─── Database dumps (large, keep out of git) ─────────
+database/full_dump.sql
+
+# ─── GPU worker (separate repo, do NOT include) ──────
+voice-worke_gpu/
