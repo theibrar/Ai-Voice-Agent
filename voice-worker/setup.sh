@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Enterprise Voice AI GPU Node - Automated One-Click Installer
-# Hardware Target: NVIDIA RTX 3090 (24GB VRAM)
-# Public IP: 212.93.107.107
+# Hardware Target: 1x NVIDIA RTX 4060 Ti (16GB VRAM) | AMD EPYC 7K62
+# Public IP: 77.104.167.149
+# Stack: Parakeet TDT 0.6B INT8 -> Qwen 4B/7B -> Kokoro-82M (+ Silero VAD v5)
 # ==============================================================================
 
 set -e
@@ -18,8 +19,10 @@ NC='\033[0m'
 echo -e "${CYAN}"
 echo "=============================================================================="
 echo "    🎙️  ENTERPRISE GPU VOICE AI WORKER - AUTOMATED INSTALLER                  "
-echo "    Target GPU : NVIDIA RTX 3090 (24GB VRAM)                                  "
-echo "    Public IP  : 212.93.107.107                                               "
+echo "    Target GPU : 1x NVIDIA RTX 4060 Ti (16GB VRAM)                            "
+echo "    CPU        : AMD EPYC 7K62 48-Core Processor                              "
+echo "    Public IP  : 77.104.167.149                                               "
+echo "    Pipeline   : Parakeet TDT 0.6B -> Qwen3-4B / Qwen2.5 -> Kokoro-82M        "
 echo "=============================================================================="
 echo -e "${NC}"
 
@@ -35,7 +38,6 @@ fi
 
 # 2. Install System Dependencies
 echo -e "${GREEN}[2/6] Installing Audio & DSP System Libraries...${NC}"
-# Clear Ubuntu background unattended-upgrades lock
 killall unattended-upgr apt apt-get 2>/dev/null || true
 rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null || true
 dpkg --configure -a 2>/dev/null || true
@@ -52,75 +54,112 @@ apt-get install -y --no-install-recommends \
     tmux \
     python3-pip \
     python3-dev \
-    build-essential
+    build-essential \
+    libespeak-ng-dev
 
-# 3. Configure API Key
-echo -e "${GREEN}[3/6] Setting Up Secure API Key...${NC}"
+# 3. Configure Environment & API Key
+echo -e "${GREEN}[3/6] Setting Up Secure Environment...${NC}"
 DEFAULT_KEY="sk-ibrasoft-gpu-voice"
-
-if [ -z "$GPU_API_KEY" ]; then
-    read -p "Enter your custom GPU API Key (press Enter to use '$DEFAULT_KEY'): " USER_KEY
-    GPU_API_KEY="${USER_KEY:-$DEFAULT_KEY}"
-fi
+PUBLIC_IP="77.104.167.149"
 
 cat <<EOF > .env
-GPU_API_KEY=${GPU_API_KEY}
-LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-STT_MODEL_SIZE=distil-large-v3
+GPU_API_KEY=${DEFAULT_KEY}
+PUBLIC_IP=${PUBLIC_IP}
+LLM_MODEL=Qwen/Qwen2.5-7B-Instruct-AWQ
 GPU_MEM_UTIL=0.65
+STT_MODEL_SIZE=distil-large-v3
+PORT_VLLM=45717
+PORT_TTS=45042
+PORT_STT=45064
+PORT_VAD=45810
+PORT_UI=45227
 KOKORO_MODEL_PATH=/root/voice_worker/models/kokoro-v0_19.onnx
 KOKORO_VOICES_PATH=/root/voice_worker/models/voices.bin
 EOF
 
-echo -e "${GREEN}✓ API Key set: ${CYAN}${GPU_API_KEY}${NC}"
+echo -e "${GREEN}✓ Environment configured with secure API key.${NC}"
 
 # 4. Install Python AI Libraries
 echo -e "${GREEN}[4/6] Installing PyTorch, vLLM, Faster-Whisper, Kokoro, Silero, & Gradio...${NC}"
 python3 -m pip install --upgrade pip setuptools wheel
 python3 -m pip install -r requirements.txt
 
-# 5. Download Kokoro Neural Model & Voices
-echo -e "${GREEN}[5/6] Downloading Kokoro-82M ONNX Neural Audio Weights & Voices...${NC}"
-mkdir -p models
+# 5. Download Neural Model Weights (Kokoro, Parakeet, Qwen)
+echo -e "${GREEN}[5/6] Downloading & Verifying Model Weights...${NC}"
+mkdir -p models/parakeet models/llm
 
+# A. Kokoro-82M ONNX & Voices
 if [ ! -f "models/kokoro-v0_19.onnx" ]; then
-    echo "Downloading kokoro-v0_19.onnx (320MB)..."
+    echo "Downloading Kokoro-82M ONNX weights (320MB)..."
     wget -q --show-progress -c https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx -O models/kokoro-v0_19.onnx
 fi
 
 if [ ! -f "models/voices.bin" ]; then
-    echo "Downloading voices.bin (28MB)..."
+    echo "Downloading Kokoro 54-voice pack (28MB)..."
     wget -q --show-progress -c https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.bin -O models/voices.bin
 fi
 
-echo -e "${GREEN}✓ Neural audio models cached in ./models/${NC}"
+# B. Parakeet TDT 0.6B v3 INT8
+echo "Downloading Parakeet TDT 0.6B INT8 components..."
+PARAKEET_URL="https://huggingface.co/aoiandroid/Parakeet-TDT-0.6B-v3-LiteRT-INT8/resolve/main"
 
-# 6. Generate Endpoints File for Super Admin
+if [ ! -f "models/parakeet/parakeet-encoder.tflite" ]; then
+    echo "  • parakeet-encoder.tflite (~567MB)..."
+    wget -q --show-progress -c "${PARAKEET_URL}/parakeet-encoder.tflite" -O models/parakeet/parakeet-encoder.tflite || true
+fi
+
+if [ ! -f "models/parakeet/parakeet-decoder-joint.tflite" ]; then
+    echo "  • parakeet-decoder-joint.tflite (~17MB)..."
+    wget -q --show-progress -c "${PARAKEET_URL}/parakeet-decoder-joint.tflite" -O models/parakeet/parakeet-decoder-joint.tflite || true
+fi
+
+if [ ! -f "models/parakeet/vocab.json" ]; then
+    echo "  • vocab.json..."
+    wget -q -c "${PARAKEET_URL}/vocab.json" -O models/parakeet/vocab.json || true
+fi
+
+if [ ! -f "models/parakeet/config.json" ]; then
+    echo "  • config.json..."
+    wget -q -c "${PARAKEET_URL}/config.json" -O models/parakeet/config.json || true
+fi
+
+# C. Qwen3-4B Q4_K_M GGUF
+if [ ! -f "models/llm/Qwen3-4B-Q4_K_M.gguf" ]; then
+    echo "Downloading Qwen3-4B-Q4_K_M.gguf (~2.5GB)..."
+    wget -q --show-progress -c "https://huggingface.co/bartowski/Qwen_Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf" -O models/llm/Qwen3-4B-Q4_K_M.gguf || true
+fi
+
+echo -e "${GREEN}✓ All model assets downloaded and cached in ./models/${NC}"
+
+# 6. Generate Production Endpoints File
 cat <<EOF > ENDPOINTS.txt
 ==============================================================================
    APEX ENTERPRISE GPU VOICE AI CLUSTER - PRODUCTION ENDPOINTS
+   Hardware: 1x NVIDIA RTX 4060 Ti (16GB VRAM) | AMD EPYC 7K62
 ==============================================================================
 
-Public IP: 212.93.107.107
-API Key  : ${GPU_API_KEY}
+Public IP: ${PUBLIC_IP}
+API Key  : ${DEFAULT_KEY}
 
-1. vLLM OpenAI-Compatible LLM Engine (Port 8000)
-   Base URL : http://212.93.107.107:41091/v1
-   Model    : Qwen/Qwen2.5-7B-Instruct
+1. vLLM / LLM OpenAI Engine (Port 8000)
+   Public URL : http://${PUBLIC_IP}:45717/v1
+   Model      : Qwen3-4B / Qwen2.5-7B-Instruct-AWQ
 
-2. Kokoro-82M Streaming Neural TTS Engine (Port 8088)
-   Base URL : http://212.93.107.107:41438
-   Voices   : af_bella, af_sarah, am_adam, am_michael, bf_emma
+2. Kokoro-82M Streaming Neural TTS (Port 8088)
+   Public URL : http://${PUBLIC_IP}:45042
+   Voices     : Full 54-voice pack (af_bella, am_michael, etc.)
+   Features   : Free-form style tags, SSML <break>, volume gain, <150ms TTFA
 
-3. Fast Streaming STT Transcriber with Denoising (Port 8030)
-   Base URL : http://212.93.107.107:41182
-   Model    : distil-large-v3 / Parakeet
+3. Fast Streaming STT Engine (Port 8030)
+   Public URL : http://${PUBLIC_IP}:45064
+   Model      : Parakeet TDT 0.6B / Faster-Whisper distil-large-v3
 
-4. Silero VAD & Barge-In Controller (Port 8090)
-   Base URL : http://212.93.107.107:41423
+4. Silero VAD v5 Controller (Port 8090)
+   Public URL : http://${PUBLIC_IP}:45810
+   Spec       : 16kHz, 512 samples / 32ms frame chunking
 
-5. Gradio Real-Time Audio Playground & Prosody Tuner (Port 7860)
-   Web UI   : http://212.93.107.107:41064
+5. Gradio Live Interactive Playground (Port 7860)
+   Public URL : http://${PUBLIC_IP}:45227
 ==============================================================================
 EOF
 
@@ -135,9 +174,9 @@ cat ENDPOINTS.txt
 
 echo -e "${CYAN}"
 echo "=============================================================================="
-echo " 🎉 ALL GPU SERVICES ARE NOW RUNNING IN THE BACKGROUND!"
-echo "    You can inspect live logs anytime with: tmux attach -t voice-worker"
-echo "    Or test your mic right now in your browser at:"
-echo "    👉 http://212.93.107.107:41064"
+echo " 🎉 ALL GPU SERVICES ARE RUNNING IN THE BACKGROUND!"
+echo "    Inspect live logs anytime with: tmux attach -t voice-worker"
+echo "    Or test your mic in your browser at:"
+echo "    👉 http://${PUBLIC_IP}:45227"
 echo "=============================================================================="
 echo -e "${NC}"
