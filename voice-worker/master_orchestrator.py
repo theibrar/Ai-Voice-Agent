@@ -18,6 +18,12 @@ from loguru import logger
 API_KEY = os.getenv("GPU_API_KEY", "sk-ibrasoft-gpu-voice")
 LLM_MODEL = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct-AWQ")
 GPU_MEM_UTIL = os.getenv("GPU_MEM_UTIL", "0.65")
+PUBLIC_IP = os.getenv("PUBLIC_IP", "77.104.167.149")
+PORT_VLLM = os.getenv("PORT_VLLM", "45717")
+PORT_TTS = os.getenv("PORT_TTS", "45042")
+PORT_STT = os.getenv("PORT_STT", "45064")
+PORT_VAD = os.getenv("PORT_VAD", "45810")
+PORT_UI = os.getenv("PORT_UI", "45227")
 
 processes = []
 
@@ -36,8 +42,9 @@ signal.signal(signal.SIGTERM, signal_handler)
 def start_services():
     logger.info("==================================================================")
     logger.info("   🎙️  ENTERPRISE GPU VOICE AI STACK - MASTER ORCHESTRATOR         ")
-    logger.info("   Hardware: 1x NVIDIA RTX 3060 (12GB VRAM) | AMD EPYC 7502P       ")
-    logger.info("   Public IP: 173.185.79.174                                      ")
+    logger.info("   Hardware: 1x NVIDIA RTX 4060 Ti (16GB VRAM)                    ")
+    logger.info("   CPU: AMD EPYC 7K62 48-Core Processor                           ")
+    logger.info(f"   Public IP: {PUBLIC_IP}                                          ")
     logger.info("==================================================================")
 
     env = os.environ.copy()
@@ -101,11 +108,11 @@ def start_services():
     logger.success("\n==================================================================")
     logger.success("   🎉 ALL 5 GPU SERVICES ARE LIVE AND RUNNING!                   ")
     logger.success("==================================================================")
-    logger.info(f"  • vLLM OpenAI API : http://173.185.79.174:46409/v1 (Port 8000)")
-    logger.info(f"  • Kokoro TTS API  : http://173.185.79.174:47830 (Port 8088)")
-    logger.info(f"  • STT Audio API   : http://173.185.79.174:46819 (Port 8030) [nvidia/parakeet-tdt-1.1b]")
-    logger.info(f"  • Silero VAD API  : http://173.185.79.174:49760 (Port 8090)")
-    logger.info(f"  • Gradio UI Web   : http://173.185.79.174:47761 (Port 7860)")
+    logger.info(f"  • vLLM OpenAI API : http://{PUBLIC_IP}:{PORT_VLLM}/v1 (Port 8000)")
+    logger.info(f"  • Kokoro TTS API  : http://{PUBLIC_IP}:{PORT_TTS} (Port 8088)")
+    logger.info(f"  • STT Audio API   : http://{PUBLIC_IP}:{PORT_STT} (Port 8030)")
+    logger.info(f"  • Silero VAD API  : http://{PUBLIC_IP}:{PORT_VAD} (Port 8090)")
+    logger.info(f"  • Gradio UI Web   : http://{PUBLIC_IP}:{PORT_UI} (Port 7860)")
     logger.info(f"  • API Key         : {API_KEY}")
     logger.success("==================================================================\n")
 
