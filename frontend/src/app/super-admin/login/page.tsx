@@ -59,6 +59,10 @@ export default function SuperAdminLoginPage() {
         return;
       }
 
+      if (data.token && typeof document !== "undefined") {
+        document.cookie = `access_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+      }
+
       await refreshAuth();
       setIsLoading(false);
       const matchedAdmin = superAdmins.find((a) => a.email.toLowerCase() === email.toLowerCase()) || {

@@ -62,18 +62,14 @@ import {
   Cell,
 } from "recharts";
 
-// Dynamic Agent Profile Generator for Tenant 360° Dossier (No ElevenLabs)
 const getTenantAgents = (tenant: TenantAdminOrg) => {
-  const allowedTTSClean = (tenant.allowedTTS || []).filter((t) => !t.toLowerCase().includes("elevenlabs"));
-  const ttsChoice = allowedTTSClean.length > 0 ? allowedTTSClean[0] : "Cartesia Sonic";
-
   return [
     {
       name: `${tenant.orgName.split(" ")[0]} Concierge AI`,
       type: "Inbound Support & Booking",
-      llm: tenant.allowedLLMs?.[0] || "OpenAI GPT-4o",
-      tts: ttsChoice.includes("cartesia") ? "Cartesia Sonic" : "Kokoro-82M",
-      stt: tenant.allowedSTT?.[0] || "Deepgram Nova-3",
+      llm: tenant.allowedLLMs?.[0] || "Qwen/Qwen2.5-7B-Instruct-AWQ",
+      tts: "Kokoro-82M",
+      stt: tenant.allowedSTT?.[0] || "Faster-Whisper distil-large-v3",
       calls: Math.max(1240, Math.round(tenant.creditsBalance * 4)),
       avgDuration: "2m 45s",
       sentiment: "+0.88",
@@ -82,9 +78,9 @@ const getTenantAgents = (tenant: TenantAdminOrg) => {
     {
       name: `${tenant.orgName.split(" ")[0]} Lead Qualifier`,
       type: "Outbound Lead Gen",
-      llm: tenant.allowedLLMs?.[1] || "Claude 3.5 Sonnet",
-      tts: "Cartesia Sonic",
-      stt: "Deepgram Nova-3",
+      llm: tenant.allowedLLMs?.[0] || "Qwen/Qwen2.5-7B-Instruct-AWQ",
+      tts: "Kokoro-82M",
+      stt: "Faster-Whisper distil-large-v3",
       calls: Math.max(850, Math.round(tenant.creditsBalance * 2.5)),
       avgDuration: "3m 10s",
       sentiment: "+0.84",

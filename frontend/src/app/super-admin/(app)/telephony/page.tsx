@@ -54,7 +54,7 @@ export default function SuperAdminTelephonyPage() {
   const [carrier, setCarrier] = useState<any>("telnyx");
   const [sipServer, setSipServer] = useState("sip.telnyx.com");
   const [port, setPort] = useState(5060);
-  const [transport, setTransport] = useState<"UDP" | "TCP" | "TLS">("TLS");
+  const [transport, setTransport] = useState<"UDP" | "TCP" | "TLS" | string>("TLS");
   const [apiKey, setApiKey] = useState("");
   const [maxChannels, setMaxChannels] = useState(1000);
   const [wholesaleRate, setWholesaleRate] = useState(0.0035);
@@ -64,7 +64,7 @@ export default function SuperAdminTelephonyPage() {
   const [editCarrier, setEditCarrier] = useState<any>("telnyx");
   const [editSipServer, setEditSipServer] = useState("");
   const [editPort, setEditPort] = useState(5060);
-  const [editTransport, setEditTransport] = useState<"UDP" | "TCP" | "TLS">("TLS");
+  const [editTransport, setEditTransport] = useState<"UDP" | "TCP" | "TLS" | string>("TLS");
   const [editApiKey, setEditApiKey] = useState("");
   const [editMaxChannels, setEditMaxChannels] = useState(1000);
   const [editWholesaleRate, setEditWholesaleRate] = useState(0.0035);

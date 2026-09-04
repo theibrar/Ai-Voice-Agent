@@ -1,4 +1,4 @@
-package handlers
+﻿package handlers
 
 import (
 	"context"
@@ -52,9 +52,9 @@ func (h *SuperAdminHandler) ensureSchemaAndSeed() {
 		assigned_email_gateway VARCHAR(255) DEFAULT 'Amazon SES Primary',
 		assigned_sms_gateway VARCHAR(255) DEFAULT 'Twilio 10DLC Pool',
 		admin_password VARCHAR(255) DEFAULT 'Admin@123',
-		allowed_llms JSONB DEFAULT '["gpt-4o", "claude-3-5-sonnet", "deepseek-v3"]'::jsonb,
-		allowed_tts JSONB DEFAULT '["kokoro-82m", "cartesia-sonic"]'::jsonb,
-		allowed_stt JSONB DEFAULT '["deepgram-nova-3"]'::jsonb,
+		allowed_llms JSONB DEFAULT '["Qwen/Qwen2.5-7B-Instruct-AWQ"]'::jsonb,
+		allowed_tts JSONB DEFAULT '["kokoro-82m"]'::jsonb,
+		allowed_stt JSONB DEFAULT '["distil-large-v3"]'::jsonb,
 		created_at TIMESTAMPTZ DEFAULT NOW()
 	);`
 	_, _ = h.db.Exec(ctx, createTableQuery)
@@ -74,10 +74,72 @@ func (h *SuperAdminHandler) ensureSchemaAndSeed() {
 		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS assigned_sip_carrier VARCHAR(255) DEFAULT 'Telnyx Elastic Tier-1';
 		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS assigned_email_gateway VARCHAR(255) DEFAULT 'Amazon SES Primary';
 		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS assigned_sms_gateway VARCHAR(255) DEFAULT 'Twilio 10DLC Pool';
-		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allowed_llms JSONB DEFAULT '["gpt-4o", "claude-3-5-sonnet", "deepseek-v3"]'::jsonb;
-		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allowed_tts JSONB DEFAULT '["kokoro-82m", "cartesia-sonic"]'::jsonb;
-		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allowed_stt JSONB DEFAULT '["deepgram-nova-3"]'::jsonb;
+		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allowed_llms JSONB DEFAULT '["Qwen/Qwen2.5-7B-Instruct-AWQ"]'::jsonb;
+		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allowed_tts JSONB DEFAULT '["kokoro-82m"]'::jsonb;
+		ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allowed_stt JSONB DEFAULT '["distil-large-v3"]'::jsonb;
 	`)
+
+	// Ensure ai_engines table exists and contains ONLY the 3 live GPU microservices
+	_, _ = h.db.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS ai_engines (
+			id VARCHAR(100) PRIMARY KEY,
+			engine_name VARCHAR(255) NOT NULL,
+			provider VARCHAR(100) DEFAULT 'vLLM OpenAI-Compatible',
+			engine_type VARCHAR(50) DEFAULT 'llm',
+			model_identifier VARCHAR(255),
+			endpoint_url VARCHAR(255),
+			api_key VARCHAR(255),
+			tier_requirement VARCHAR(50) DEFAULT 'all',
+			latency_avg_ms INT DEFAULT 110,
+			cost_per_unit VARCHAR(100) DEFAULT '$0.10 / 1M tokens',
+			is_custom BOOLEAN DEFAULT true,
+			is_global_default BOOLEAN DEFAULT true,
+			description TEXT,
+			total_calls_executed INT DEFAULT 0,
+			tokens_processed BIGINT DEFAULT 0,
+			avg_latency_ms INT DEFAULT 110,
+			monthly_cost DECIMAL(10,2) DEFAULT 0.00,
+			status VARCHAR(50) DEFAULT 'active',
+			created_at TIMESTAMPTZ DEFAULT NOW(),
+			synced_at TIMESTAMPTZ DEFAULT NOW()
+		);
+		DELETE FROM ai_engines WHERE id NOT IN ('eng-vllm-qwen', 'eng-kokoro-tts', 'eng-whisper-stt');
+		INSERT INTO ai_engines (
+			id, engine_name, provider, engine_type, model_identifier, endpoint_url,
+			api_key, tier_requirement, latency_avg_ms, cost_per_unit, is_custom,
+			is_global_default, description, status, created_at
+		) VALUES 
+		(
+			'eng-vllm-qwen', 'vLLM Neural LLM Engine', 'vLLM OpenAI-Compatible', 'llm',
+			'Qwen/Qwen2.5-7B-Instruct-AWQ', 'http://184.144.154.180:56137/v1', 'sk-ibrasoft-gpu-voice',
+			'all', 110, '$0.10 / 1M tokens', true, true,
+			'Self-hosted private GPU cluster running vLLM OpenAI-compatible REST server with Qwen 2.5 7B Instruct AWQ.',
+			'active', NOW()
+		),
+		(
+			'eng-kokoro-tts', 'Kokoro Ultra-Fast Neural TTS', 'Kokoro-82M ONNX', 'tts',
+			'kokoro-82m', 'http://184.144.154.180:56209', 'sk-ibrasoft-gpu-voice',
+			'all', 45, '$0.005 / 1K chars', true, true,
+			'Ultra-low ~45ms latency ONNX TTS engine with 82M parameters. 24 kHz, 16-bit Mono PCM WAV.',
+			'active', NOW()
+		),
+		(
+			'eng-whisper-stt', 'Faster-Whisper CUDA Streaming Transcriber', 'Faster-Whisper CUDA', 'stt',
+			'distil-large-v3', 'http://184.144.154.180:56546', 'sk-ibrasoft-gpu-voice',
+			'all', 180, '$0.003 / min', true, true,
+			'Real-time distil-large-v3 model on NVIDIA CUDA (float16) with entity extraction and websocket streaming.',
+			'active', NOW()
+		)
+		ON CONFLICT (id) DO UPDATE SET
+			engine_name = EXCLUDED.engine_name,
+			provider = EXCLUDED.provider,
+			engine_type = EXCLUDED.engine_type,
+			model_identifier = EXCLUDED.model_identifier,
+			endpoint_url = EXCLUDED.endpoint_url,
+			api_key = EXCLUDED.api_key,
+			status = 'active';
+	`)
+
 
 	// Ensure sip_trunks table exists
 	createTrunksQuery := `
@@ -218,6 +280,50 @@ func (h *SuperAdminHandler) ensureSchemaAndSeed() {
 		created_at TIMESTAMPTZ DEFAULT NOW()
 	);`
 	_, _ = h.db.Exec(ctx, createLogsQuery)
+
+	// Ensure ai_engines table exists
+	createAIEnginesQuery := `
+	CREATE TABLE IF NOT EXISTS ai_engines (
+		id VARCHAR(100) PRIMARY KEY,
+		engine_name VARCHAR(255) NOT NULL,
+		provider VARCHAR(100) NOT NULL,
+		engine_type VARCHAR(50) NOT NULL,
+		model_identifier VARCHAR(255),
+		endpoint_url TEXT,
+		api_key VARCHAR(255) DEFAULT '',
+		tier_requirement VARCHAR(50) DEFAULT 'all',
+		latency_avg_ms INT DEFAULT 45,
+		cost_per_unit VARCHAR(100) DEFAULT '$0.00 / Self-Hosted GPU',
+		is_custom BOOLEAN DEFAULT false,
+		is_global_default BOOLEAN DEFAULT false,
+		description TEXT,
+		total_calls_executed INT DEFAULT 0,
+		tokens_processed BIGINT DEFAULT 0,
+		avg_latency_ms INT DEFAULT 45,
+		monthly_cost DECIMAL(10,2) DEFAULT 0.00,
+		status VARCHAR(50) DEFAULT 'active',
+		created_at TIMESTAMPTZ DEFAULT NOW()
+	);`
+	_, _ = h.db.Exec(ctx, createAIEnginesQuery)
+
+	// Seed GPU AI Microservices if table is empty
+	var aiEngineCount int
+	_ = h.db.QueryRow(ctx, "SELECT COUNT(*) FROM ai_engines").Scan(&aiEngineCount)
+	if aiEngineCount == 0 {
+		seedQuery := `
+		INSERT INTO ai_engines (
+			id, engine_name, provider, engine_type, model_identifier, endpoint_url,
+			api_key, tier_requirement, latency_avg_ms, cost_per_unit, is_custom,
+			is_global_default, description, status, created_at
+		) VALUES
+		('eng-vllm-qwen', 'vLLM Neural LLM Engine', 'OpenAI-Compatible vLLM', 'llm', 'Qwen/Qwen2.5-7B-Instruct-AWQ', 'http://184.144.154.180:56137/v1', 'sk-ibrasoft-gpu-voice', 'all', 45, '$0.00 / Self-Hosted GPU', true, true, 'Production vLLM OpenAI-Compatible high-throughput inference engine running on NVIDIA RTX 4060 Ti (16GB VRAM).', 'active', NOW()),
+		('eng-tts-kokoro-gpu', 'Kokoro-82M ONNX TTS', 'Kokoro ONNX Neural', 'tts', 'kokoro-82m-onnx', 'http://184.144.154.180:56209', 'sk-ibrasoft-gpu-voice', 'all', 45, '$0.00 / Self-Hosted GPU', true, true, 'Ultra-fast neural text-to-speech with prosody & emotion tags ([cheerful], [empathy]) on NVIDIA RTX 4060 Ti.', 'active', NOW()),
+		('eng-stt-whisper-gpu', 'Faster-Whisper CUDA STT', 'Faster-Whisper CUDA', 'stt', 'distil-large-v3', 'http://184.144.154.180:56546', 'sk-ibrasoft-gpu-voice', 'all', 180, '$0.00 / Self-Hosted GPU', true, true, 'High-accuracy streaming speech-to-text powered by CUDA float16 distil-large-v3 on NVIDIA RTX 4060 Ti.', 'active', NOW()),
+		('eng-vad-silero-gpu', 'Silero VAD v5 Neural Chunk Monitor', 'Silero Neural VAD', 'stt', 'silero-vad-v5', 'http://184.144.154.180:56756', 'sk-ibrasoft-gpu-voice', 'all', 5, '$0.00 / Self-Hosted GPU', true, true, 'Sub-5ms caller interruption and barge-in voice activity detector on NVIDIA RTX 4060 Ti.', 'active', NOW())
+		ON CONFLICT (id) DO NOTHING;
+		`
+		_, _ = h.db.Exec(ctx, seedQuery)
+	}
 }
 
 func (h *SuperAdminHandler) GetSystemStats(c *gin.Context) {
@@ -1381,7 +1487,10 @@ func (h *SuperAdminHandler) GetActiveLLMModels(c *gin.Context) {
 	for rows.Next() {
 		var id, engineName, provider, modelIdentifier, desc string
 		if err := rows.Scan(&id, &engineName, &provider, &modelIdentifier, &desc); err == nil {
-			fullName := fmt.Sprintf("%s (%s)", engineName, provider)
+			fullName := modelIdentifier
+			if fullName == "" {
+				fullName = fmt.Sprintf("%s (%s)", engineName, provider)
+			}
 			models = append(models, AdminModelOption{
 				ID:       id,
 				Name:     engineName,
@@ -1389,6 +1498,7 @@ func (h *SuperAdminHandler) GetActiveLLMModels(c *gin.Context) {
 				FullName: fullName,
 			})
 		}
+
 	}
 
 	c.JSON(http.StatusOK, gin.H{"models": models})

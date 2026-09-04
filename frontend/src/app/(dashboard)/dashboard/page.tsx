@@ -463,7 +463,9 @@ export default function DashboardPage() {
 
   const toggleAppointmentStatus = (id: string, currentStatus: string) => {
     const nextStatus = currentStatus === "confirmed" ? "pending" : "confirmed";
-    updateAppointmentStatus(id, nextStatus as any);
+    setAppointments((prev: any[]) =>
+      prev.map((apt) => (apt.id === id ? { ...apt, status: nextStatus } : apt))
+    );
     addToast({
       title: nextStatus === "confirmed" ? "Appointment Confirmed" : "Appointment Marked Pending",
       description: "Calendar availability updated.",

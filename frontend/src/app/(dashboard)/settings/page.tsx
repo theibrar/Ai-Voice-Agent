@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
@@ -50,9 +50,7 @@ export default function SettingsPage() {
     addWebhook,
   } = useAppStore();
 
-  const openAiOptions = availableLlmModels.filter(m => m.provider.toLowerCase().includes("openai"));
-  const geminiOptions = availableLlmModels.filter(m => m.provider.toLowerCase().includes("google") || m.provider.toLowerCase().includes("gemini"));
-  const deepseekOptions = availableLlmModels.filter(m => m.provider.toLowerCase().includes("deepseek"));
+  const vllmOptions = availableLlmModels;
 
   const [activeTab, setActiveTab] = useState<
     "general" | "api_keys" | "webhooks" | "compliance" | "team"
@@ -86,29 +84,13 @@ export default function SettingsPage() {
     }
   }, [user, tenant]);
 
-  // Voice AI & LLM Engine Vault State
-  // 1. OpenAI Engine
-  const [openaiApiKey, setOpenaiApiKey] = useState("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");
-  const [openaiModel, setOpenaiModel] = useState("gpt-4o");
-
-  // 2. Google Gemini Engine
-  const [geminiApiKey, setGeminiApiKey] = useState("AQ.Ab8RN6JyfBrZTS8O8PnGvOTH59Aqm0F3V98uUcs9RDzbbCmlFQ");
-  const [geminiModel, setGeminiModel] = useState("gemini-2.0-flash");
-
-  // 3. DeepSeek Engine
-  const [deepseekApiKey, setDeepseekApiKey] = useState("sk-6afcb9c9ea194924b7037362f7aaa30f");
-  const [deepseekModel, setDeepseekModel] = useState("deepseek-v3");
-
-  // 4. TTS (Kokoro TTS)
+  // Dedicated GPU Microservices Stack (184.144.154.180)
+  const [vllmModel, setVllmModel] = useState("Qwen/Qwen2.5-7B-Instruct-AWQ");
   const [ttsModel, setTtsModel] = useState("kokoro-82m");
-  const [ttsVoice, setTtsVoice] = useState("kokoro-heart-v0.19");
-  const [ttsApiKey, setTtsApiKey] = useState("kokoro_neural_live_direct_pipeline_9821");
+  const [ttsVoice, setTtsVoice] = useState("af_bella");
   const [ttsSpeed, setTtsSpeed] = useState("1.0x");
-
-  // 5. STT (Parakeet STT)
-  const [sttModel, setSttModel] = useState("parakeet-tdt-1.1b");
-  const [sttLanguage, setSttLanguage] = useState("en-US");
-  const [sttApiKey, setSttApiKey] = useState("parakeet_conformer_nv_9810238_live");
+  const [sttModel, setSttModel] = useState("distil-large-v3");
+  const [sttLanguage, setSttLanguage] = useState("English (US)");
 
   // Webhooks Management Modal
   const [addWebhookOpen, setAddWebhookOpen] = useState(false);
@@ -400,258 +382,67 @@ export default function SettingsPage() {
             <div className="p-4 bg-[#EEF2FD]/50 rounded-2xl border border-[#CBD5E1] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-[#3157D5] text-white flex items-center justify-center shadow-xs">
-                  <Zap className="w-5 h-5" />
+                  <Cpu className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[#0F172A]">Production AI Engine Orchestration</h3>
-                  <p className="text-[#64748B] text-[11px]">Real-time pipeline: Parakeet STT → Powerful Conversational LLM → Kokoro Neural TTS</p>
+                  <h3 className="font-bold text-[#0F172A]">Dedicated Live GPU Microservices Stack (184.144.154.180)</h3>
+                  <p className="text-[#64748B] text-[11px]">Real-time pipeline: Faster-Whisper STT (distil-large-v3) → vLLM Qwen 2.5 7B Instruct AWQ → Kokoro-82M ONNX Neural TTS</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-xl text-[11px]">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  All 3 Engines Operational
+                  3 Microservices Active
                 </span>
               </div>
             </div>
 
-            {/* 1. OpenAI Engine Card */}
-            <div className="p-5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-4 hover:border-[#3157D5]/40 transition-colors">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E2E8F0]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs font-bold text-sm">
-                    AI
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-[#0F172A]">OpenAI Engine (GPT-4o / Realtime / o3-mini)</h4>
-                      <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
-                        Omnichannel AI
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#64748B]">Official OpenAI GPT-4o, GPT-4o Mini, and o1/o3-mini reasoning engines</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href="https://developers.openai.com/api/docs"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-[#3157D5] hover:underline font-bold flex items-center gap-1"
-                  >
-                    <span>OpenAI Docs</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                    Connected
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">Default OpenAI Model</label>
-                  <select
-                    value={openaiModel}
-                    onChange={(e) => setOpenaiModel(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-xl font-bold text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
-                  >
-                    {openAiOptions.length > 0 ? (
-                      openAiOptions.map((m) => (
-                        <option key={m.id} value={m.name}>
-                          {m.fullName || m.name}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="GPT-5.6 Flagship (OpenAI)">GPT-5.6 Flagship (OpenAI)</option>
-                        <option value="GPT-4o (OpenAI)">GPT-4o (OpenAI)</option>
-                        <option value="GPT-4o Mini (OpenAI)">GPT-4o Mini (OpenAI)</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">OpenAI API Endpoint</label>
-                  <input
-                    type="text"
-                    defaultValue="https://api.openai.com/v1"
-                    readOnly
-                    className="w-full px-3 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#0F172A] outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-[#0F172A] mb-1 flex items-center justify-between">
-                    <span>OpenAI API Key</span>
-                    <span className="text-[11px] text-[#64748B] font-medium">
-                      Managed by Super Admin
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value="••••••••••••••••••••••••••••••••••••••••••••••••"
-                      readOnly
-                      disabled
-                      className="w-full px-3.5 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#64748B] outline-none cursor-not-allowed select-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. Google Gemini Engine Card */}
-            <div className="p-5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-4 hover:border-[#3157D5]/40 transition-colors">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E2E8F0]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center shadow-xs font-bold text-sm">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-[#0F172A]">Google Gemini AI Engine (3.1 Pro / 3 Pro / 3.7 Flash)</h4>
-                      <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-800 rounded-full">
-                        Google AI Studio
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#64748B]">Massive 2M context window with native multi-modality & audio token streaming</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <a
-                    href="https://aistudio.google.com/docs/api-key"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-[#3157D5] hover:underline font-bold flex items-center gap-1"
-                  >
-                    <span>Gemini Docs</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                    Connected
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">Default Gemini Model</label>
-                  <select
-                    value={geminiModel}
-                    onChange={(e) => setGeminiModel(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-xl font-bold text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
-                  >
-                    {geminiOptions.length > 0 ? (
-                      geminiOptions.map((m) => (
-                        <option key={m.id} value={m.name}>
-                          {m.fullName || m.name}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="Gemini 3.1 Pro (Google Gemini)">Gemini 3.1 Pro (Google Gemini)</option>
-                        <option value="Gemini 3.7 Flash (Google Gemini)">Gemini 3.7 Flash (Google Gemini)</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">Google AI Endpoint</label>
-                  <input
-                    type="text"
-                    defaultValue="https://generativelanguage.googleapis.com/v1beta"
-                    readOnly
-                    className="w-full px-3 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#0F172A] outline-none"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block font-bold text-[#0F172A] mb-1 flex items-center justify-between">
-                    <span>Google Gemini API Key</span>
-                    <span className="text-[11px] text-[#64748B] font-medium">
-                      Managed by Super Admin
-                    </span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value="••••••••••••••••••••••••••••••••••••••••••••••••"
-                      readOnly
-                      disabled
-                      className="w-full px-3.5 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#64748B] outline-none cursor-not-allowed select-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 3. DeepSeek Engine Card */}
+            {/* 1. vLLM Neural LLM Engine Card */}
             <div className="p-5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-4 hover:border-[#3157D5]/40 transition-colors">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E2E8F0]">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center shadow-xs font-bold text-sm">
-                    DS
+                    🧠
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-[#0F172A]">DeepSeek AI Reasoning Engine (V4-Pro / V4 Flash / R1)</h4>
+                      <h4 className="font-bold text-sm text-[#0F172A]">vLLM Neural LLM Engine (Qwen 2.5 7B AWQ)</h4>
                       <span className="px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-800 rounded-full">
-                        Next-Gen SOTA
+                        NVIDIA RTX 4060 Ti GPU
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#64748B]">Ultimate cost-efficiency, open-weights availability & agentic workflow execution</p>
+                    <p className="text-[11px] text-[#64748B]">Self-hosted production high-throughput OpenAI-compatible completions with AWQ 4-bit quantization</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <a
-                    href="https://api-docs.deepseek.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[11px] text-[#3157D5] hover:underline font-bold flex items-center gap-1"
-                  >
-                    <span>DeepSeek Docs</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                    Connected
+                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full font-bold">
+                    Online • ~45ms TTFT
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">Default DeepSeek Model</label>
+                  <label className="block font-bold text-[#0F172A] mb-1">Active LLM Model</label>
                   <select
-                    value={deepseekModel}
-                    onChange={(e) => setDeepseekModel(e.target.value)}
+                    value={vllmModel}
+                    onChange={(e) => setVllmModel(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-xl font-bold text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
                   >
-                    {deepseekOptions.length > 0 ? (
-                      deepseekOptions.map((m) => (
-                        <option key={m.id} value={m.name}>
-                          {m.fullName || m.name}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="DeepSeek-V4-Pro (DeepSeek)">DeepSeek-V4-Pro (DeepSeek)</option>
-                        <option value="DeepSeek V3 (DeepSeek)">DeepSeek V3 (DeepSeek)</option>
-                      </>
-                    )}
+                    {vllmOptions.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.fullName || m.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">DeepSeek Base URL</label>
+                  <label className="block font-bold text-[#0F172A] mb-1">GPU Base URL Endpoint</label>
                   <input
                     type="text"
-                    defaultValue="https://api.deepseek.com/v1"
+                    defaultValue="http://184.144.154.180:56137/v1"
                     readOnly
                     className="w-full px-3 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#0F172A] outline-none"
                   />
@@ -659,15 +450,15 @@ export default function SettingsPage() {
 
                 <div className="md:col-span-2">
                   <label className="block font-bold text-[#0F172A] mb-1 flex items-center justify-between">
-                    <span>DeepSeek API Key</span>
+                    <span>GPU Authentication Key</span>
                     <span className="text-[11px] text-[#64748B] font-medium">
-                      Managed by Super Admin
+                      Managed by Super Admin (sk-ibrasoft-gpu-voice)
                     </span>
                   </label>
                   <div className="relative">
                     <input
                       type="password"
-                      value="••••••••••••••••••••••••••••••••••••••••••••••••"
+                      value="sk-ibrasoft-gpu-voice"
                       readOnly
                       disabled
                       className="w-full px-3.5 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#64748B] outline-none cursor-not-allowed select-none"
@@ -677,71 +468,85 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* 4. Kokoro TTS Engine Card */}
+            {/* 2. Kokoro TTS Engine Card */}
             <div className="p-5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-4 hover:border-[#3157D5]/40 transition-colors">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E2E8F0]">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center shadow-xs">
-                    <Headphones className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center shadow-xs font-bold text-sm">
+                    🔊
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-[#0F172A]">Kokoro TTS Neural Voice Synthesizer</h4>
+                      <h4 className="font-bold text-sm text-[#0F172A]">Kokoro Ultra-Fast Neural TTS (82M ONNX)</h4>
                       <span className="px-2 py-0.5 text-[10px] font-bold bg-sky-100 text-sky-800 rounded-full">
-                        Sub-50ms TTS Voice
+                        Sub-45ms Synthesizer
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#64748B]">High-fidelity 82M open-weight neural voice synthesis with natural emotional inflections</p>
+                    <p className="text-[11px] text-[#64748B]">High-fidelity 82M open-weight neural voice synthesis with 24kHz 16-bit PCM output (English US & UK)</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                    Active • ~45ms TTFT
+                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full font-bold">
+                    Online • ~45ms Latency
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">Kokoro TTS Model & Architecture</label>
+                  <label className="block font-bold text-[#0F172A] mb-1">TTS Neural Model</label>
                   <select
                     value={ttsModel}
                     onChange={(e) => setTtsModel(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-xl font-bold text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
                   >
-                    <option value="kokoro-82m">Kokoro 82M Neural Model (Sub-50ms Ultra-Fast)</option>
-                    <option value="kokoro-v0.19">Kokoro v0.19 OpenVoice (HD 24kHz Studio)</option>
-                    <option value="elevenlabs-turbo">ElevenLabs Turbo v2.5 (Alternative Fallback)</option>
-                    <option value="cartesia-sonic">Cartesia Sonic (Fast Low-Latency)</option>
+                    <option value="kokoro-82m">Kokoro-82M Neural ONNX (Sub-45ms Ultra-Fast)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">Default Kokoro Voice Profile</label>
+                  <label className="block font-bold text-[#0F172A] mb-1">GPU Base URL Endpoint</label>
+                  <input
+                    type="text"
+                    defaultValue="http://184.144.154.180:56209"
+                    readOnly
+                    className="w-full px-3 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#0F172A] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#0F172A] mb-1">Default Persona Preview</label>
                   <select
                     value={ttsVoice}
                     onChange={(e) => setTtsVoice(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-xl font-medium text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
                   >
-                    <option value="kokoro-heart-v0.19">Kokoro: Heart (Female - Conversational Warm)</option>
-                    <option value="kokoro-bella">Kokoro: Bella (Female - Energetic Executive)</option>
-                    <option value="kokoro-adam">Kokoro: Adam (Male - Deep Professional)</option>
-                    <option value="kokoro-michael">Kokoro: Michael (Male - Confident Closer)</option>
+                    <option value="af_bella">Bella (US Female • Warm & Professional)</option>
+                    <option value="am_adam">Adam (US Male • Deep & Engaging)</option>
+                    <option value="bf_emma">Emma (UK Female • Conversational & Direct)</option>
+                    <option value="bm_george">George (UK Male • Polished & Authoritative)</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#0F172A] mb-1">Supported Languages</label>
+                  <div className="w-full px-3 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-medium text-xs text-[#0F172A]">
+                    English (US) & English (UK)
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="block font-bold text-[#0F172A] mb-1 flex items-center justify-between">
-                    <span>Kokoro TTS API Key / Neural Gateway Key</span>
+                    <span>GPU Authentication Key</span>
                     <span className="text-[11px] text-[#64748B] font-medium">
-                      Managed by Super Admin
+                      Managed by Super Admin (sk-ibrasoft-gpu-voice)
                     </span>
                   </label>
                   <div className="relative">
                     <input
                       type="password"
-                      value="••••••••••••••••••••••••••••••••••••••••••••••••"
+                      value="sk-ibrasoft-gpu-voice"
                       readOnly
                       disabled
                       className="w-full px-3.5 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#64748B] outline-none cursor-not-allowed select-none"
@@ -751,44 +556,51 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* 5. Parakeet STT Engine Card */}
+            {/* 3. Faster-Whisper STT Engine Card */}
             <div className="p-5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] space-y-4 hover:border-[#3157D5]/40 transition-colors">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E2E8F0]">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs">
-                    <Mic className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-xs font-bold text-sm">
+                    🎙️
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm text-[#0F172A]">Parakeet STT Speech Recognition Model</h4>
+                      <h4 className="font-bold text-sm text-[#0F172A]">Faster-Whisper CUDA Streaming Transcriber</h4>
                       <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full">
-                        FastConformer 1.1B
+                        distil-large-v3
                       </span>
                     </div>
-                    <p className="text-[11px] text-[#64748B]">NVIDIA FastConformer Parakeet-TDT 1.1B model with real-time word error rate &lt;2.8%</p>
+                    <p className="text-[11px] text-[#64748B]">CUDA float16 distil-large-v3 streaming speech-to-text with sub-180ms latency and high word recognition accuracy</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
-                    Active • Sub-80ms Streaming
+                  <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full font-bold">
+                    Online • Sub-180ms Streaming
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-[#0F172A] mb-1">Parakeet STT Model Architecture</label>
+                  <label className="block font-bold text-[#0F172A] mb-1">STT Model Architecture</label>
                   <select
                     value={sttModel}
                     onChange={(e) => setSttModel(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-xl font-bold text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
                   >
-                    <option value="parakeet-tdt-1.1b">NVIDIA Parakeet-TDT 1.1B (Powerful / Sub-80ms)</option>
-                    <option value="parakeet-ctc-1.1b">NVIDIA Parakeet-CTC 1.1B (High Noise Resilience)</option>
-                    <option value="deepgram-nova-3">Deepgram Nova-3 (Conversational Multi-Language)</option>
-                    <option value="whisper-large-v3">OpenAI Whisper Large-v3 Turbo</option>
+                    <option value="distil-large-v3">Faster-Whisper distil-large-v3 (CUDA float16)</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#0F172A] mb-1">GPU Base URL Endpoint</label>
+                  <input
+                    type="text"
+                    defaultValue="http://184.144.154.180:56546"
+                    readOnly
+                    className="w-full px-3 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#0F172A] outline-none"
+                  />
                 </div>
 
                 <div>
@@ -798,25 +610,29 @@ export default function SettingsPage() {
                     onChange={(e) => setSttLanguage(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-xl font-medium text-xs text-[#0F172A] outline-none focus:border-[#3157D5]"
                   >
-                    <option value="en-US">English (US & International) - Auto-detect Accents</option>
-                    <option value="es-ES">Spanish (Spain & Latin America)</option>
-                    <option value="fr-FR">French (Standard)</option>
-                    <option value="de-DE">German</option>
-                    <option value="multi">Auto-Detect Multi-Language (30+ Languages)</option>
+                    <option value="English (US)">English (US)</option>
+                    <option value="English (UK)">English (UK)</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-[#0F172A] mb-1">Streaming Mode</label>
+                  <div className="w-full px-3 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-medium text-xs text-[#0F172A]">
+                    WebSocket Full-Duplex PCM Chunking
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
                   <label className="block font-bold text-[#0F172A] mb-1 flex items-center justify-between">
-                    <span>Parakeet STT API Key / Streaming Auth Key</span>
+                    <span>GPU Authentication Key</span>
                     <span className="text-[11px] text-[#64748B] font-medium">
-                      Managed by Super Admin
+                      Managed by Super Admin (sk-ibrasoft-gpu-voice)
                     </span>
                   </label>
                   <div className="relative">
                     <input
                       type="password"
-                      value="••••••••••••••••••••••••••••••••••••••••••••••••"
+                      value="sk-ibrasoft-gpu-voice"
                       readOnly
                       disabled
                       className="w-full px-3.5 py-2 bg-[#F1F5F9] border border-[#CBD5E1] rounded-xl font-mono text-xs text-[#64748B] outline-none cursor-not-allowed select-none"

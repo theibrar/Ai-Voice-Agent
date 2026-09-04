@@ -40,7 +40,7 @@ export default function SuperAdminCallsPage() {
     return matchesSearch && matchesTenant && matchesStatus;
   });
 
-  const activeCount = (globalCalls || []).filter((c) => c.status === "in_progress" || c.status === "live").length;
+  const activeCount = (globalCalls || []).filter((c) => (c.status as string) === "in_progress" || (c.status as string) === "live").length;
 
   return (
     <div className="space-y-6">
@@ -178,13 +178,13 @@ export default function SuperAdminCallsPage() {
                     <td className="p-3 whitespace-nowrap">
                       <div className="space-y-0.5">
                         <span className="text-[10px] font-bold text-[#3157D5] bg-[#EEF2FD] px-1.5 py-0.2 rounded inline-block">
-                          {call.llmModel || "GPT-4o Mini"}
+                          {call.llmModel || "Qwen/Qwen2.5-7B-Instruct-AWQ"}
                         </span>
-                        <p className="text-[9px] text-[#64748B]">{call.ttsVoice || "Kokoro af_heart"} • {call.sttEngine || "Parakeet STT"}</p>
+                        <p className="text-[9px] text-[#64748B]">{call.ttsVoice || "Kokoro-82M (af_bella)"} • {call.sttEngine || "Faster-Whisper distil-large-v3"}</p>
                       </div>
                     </td>
                     <td className="p-3 font-mono font-semibold text-[#0F172A] whitespace-nowrap">
-                      {Math.floor((call.durationSeconds || call.duration || 60) / 60)}m {(call.durationSeconds || call.duration || 60) % 60}s
+                      {Math.floor(((call.durationSeconds || (call as any).duration || 60)) / 60)}m {((call.durationSeconds || (call as any).duration || 60)) % 60}s
                     </td>
                     <td className="p-3 whitespace-nowrap">
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${

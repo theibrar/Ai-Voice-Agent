@@ -89,10 +89,13 @@ interface SuperAdminContextType {
   deleteSipCarrier: (id: string) => void;
 
   engines: VoiceAiEngine[];
+  refreshEngines: () => Promise<void>;
   addCustomEngine: (engine: Omit<VoiceAiEngine, "id">) => void;
+  updateCustomEngine: (engine: VoiceAiEngine) => void;
   toggleEngineStatus: (id: string) => void;
   deleteEngine: (id: string) => void;
   updateEngineTierRequirement: (id: string, tier: "all" | "growth_plus" | "enterprise_only") => void;
+  probeEngineHealth: (engineId: string) => Promise<{ online: boolean; latencyMs: number; message?: string }>;
 
   globalCalls: GlobalCallSession[];
   refreshGlobalCalls: () => Promise<void>;
@@ -242,15 +245,23 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
   const refreshEngines = useCallback(async () => {
     try {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + '/superadmin/ai-engines';
-      const res = await fetch(apiUrl, {
+      let res = await fetch(apiUrl, {
         method: "GET",
         credentials: "include",
         cache: 'no-store',
       });
+      if (!res.ok) {
+        const fallbackUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + '/ai-engines';
+        res = await fetch(fallbackUrl, {
+          method: "GET",
+          credentials: "include",
+          cache: 'no-store',
+        });
+      }
       if (res.ok) {
         const data = await res.json();
-        if (data && data.ai_engines && data.ai_engines.length > 0) {
-          setEngines(data.ai_engines.map((e: any) => ({
+        if (data && Array.isArray(data.ai_engines)) {
+          const dbEngines: VoiceAiEngine[] = data.ai_engines.map((e: any) => ({
             id: e.id,
             name: e.name || e.engine_name,
             provider: e.provider,
@@ -265,7 +276,11 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
             description: e.description || "",
             isCustom: e.is_custom !== undefined ? e.is_custom : true,
             baseUrl: e.base_url || e.endpoint_url || "",
-          })));
+            apiKey: e.api_key || "",
+          }));
+
+          // Exclusively load what is in the database - no static models
+          setEngines(dbEngines);
         }
       }
     } catch (err) {
@@ -382,9 +397,12 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Live Database API fetch on mount
+  // Live Database API fetch on mount (only if authenticated)
   React.useEffect(() => {
     if (typeof window === "undefined") return;
+    if (typeof document !== "undefined" && !document.cookie.includes("access_token=")) {
+      return;
+    }
     refreshTenants();
     refreshPlans();
     refreshEngines();
@@ -958,22 +976,24 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
   }, [sipCarriers, addAuditLog, addToast, refreshSipCarriers]);
 
   const addCustomEngine = useCallback(async (engineData: Omit<VoiceAiEngine, "id">) => {
+    const tempId = `eng-${engineData.category}-${Date.now()}`;
     const newEng: VoiceAiEngine = {
       ...engineData,
-      id: `eng-${engineData.category}-${Date.now()}`,
+      id: tempId,
       isCustom: true,
     };
     setEngines((prev) => [...prev, newEng]);
-    addAuditLog(`Registered custom ${engineData.category.toUpperCase()} model '${engineData.name}' (${engineData.provider})`, `VoiceEngine (${newEng.id})`, "info");
+    addAuditLog(`Registered custom ${engineData.category.toUpperCase()} model '${engineData.name}' (${engineData.provider})`, `VoiceEngine (${tempId})`, "info");
     addToast({ title: "Custom Model Registered", description: `${engineData.name} saved to PostgreSQL and available for Admin.`, type: "success" });
 
     try {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + '/superadmin/ai-engines';
-      await fetch(apiUrl, {
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
-          id: newEng.id,
+          id: tempId,
           name: engineData.name,
           provider: engineData.provider,
           category: engineData.category,
@@ -987,27 +1007,74 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
           status: engineData.status,
         }),
       });
+      if (res.ok) {
+        await refreshEngines();
+      }
     } catch (err) {
       console.warn("Failed to store custom engine in database:", err);
     }
-  }, [addAuditLog, addToast]);
+  }, [addAuditLog, addToast, refreshEngines]);
+
+  const updateCustomEngine = useCallback(async (engineData: VoiceAiEngine) => {
+    setEngines((prev) => prev.map((e) => (e.id === engineData.id ? { ...e, ...engineData } : e)));
+    addAuditLog(`Updated AI model '${engineData.name}' (${engineData.id})`, `Engine (${engineData.id})`, "info");
+    addToast({ title: "Engine Updated", description: `${engineData.name} updated in PostgreSQL database.`, type: "success" });
+
+    try {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + '/superadmin/ai-engines';
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          id: engineData.id,
+          name: engineData.name,
+          provider: engineData.provider,
+          category: engineData.category,
+          model_identifier: engineData.modelIdentifier,
+          endpoint_url: engineData.baseUrl,
+          api_key: engineData.apiKey,
+          tier_requirement: engineData.tierRequirement,
+          latency_avg_ms: engineData.latencyAvgMs,
+          cost_per_unit: engineData.costPerUnit,
+          description: engineData.description,
+          status: engineData.status,
+        }),
+      });
+      if (res.ok) {
+        await refreshEngines();
+      }
+    } catch (err) {
+      console.warn("Failed to update engine in database:", err);
+    }
+  }, [addAuditLog, addToast, refreshEngines]);
 
   const toggleEngineStatus = useCallback(async (id: string) => {
+    const current = engines.find((e) => e.id === id);
+    const nextStatus = current?.status === "active" ? "deprecated" : "active";
     setEngines((prev) =>
       prev.map((e) =>
-        e.id === id ? { ...e, status: e.status === "active" ? "deprecated" : "active" } : e
+        e.id === id ? { ...e, status: nextStatus } : e
       )
     );
-    addAuditLog(`Toggled engine status for '${id}'`, `Engine (${id})`, "info");
-    addToast({ title: "Engine Status Updated", description: "Global engine availability updated in database.", type: "info" });
+    addAuditLog(`Toggled engine status for '${id}' to ${nextStatus}`, `Engine (${id})`, "info");
+    addToast({ title: "Engine Status Updated", description: `Engine status set to ${nextStatus} in database.`, type: "info" });
 
     try {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + `/superadmin/ai-engines/${id}/status`;
-      await fetch(apiUrl, { method: "PATCH" });
+      const res = await fetch(apiUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      if (res.ok) {
+        await refreshEngines();
+      }
     } catch (err) {
       console.warn("Failed to toggle engine status in database:", err);
     }
-  }, [addAuditLog, addToast]);
+  }, [engines, addAuditLog, addToast, refreshEngines]);
 
   const deleteEngine = useCallback(async (id: string) => {
     setEngines((prev) => prev.filter((e) => e.id !== id));
@@ -1016,17 +1083,82 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
 
     try {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + `/superadmin/ai-engines/${id}`;
-      await fetch(apiUrl, { method: "DELETE" });
+      const res = await fetch(apiUrl, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        await refreshEngines();
+      }
     } catch (err) {
       console.warn("Failed to delete engine from database:", err);
     }
-  }, [addAuditLog, addToast]);
+  }, [addAuditLog, addToast, refreshEngines]);
 
-  const updateEngineTierRequirement = useCallback((id: string, tierRequirement: "all" | "growth_plus" | "enterprise_only") => {
+  const updateEngineTierRequirement = useCallback(async (id: string, tierRequirement: "all" | "growth_plus" | "enterprise_only") => {
     setEngines((prev) => prev.map((e) => (e.id === id ? { ...e, tierRequirement } : e)));
     addAuditLog(`Set tier requirement for engine '${id}' to '${tierRequirement}'`, `Engine (${id})`, "info");
-    addToast({ title: "Tier Requirement Updated", description: `Restricted to ${tierRequirement}.`, type: "info" });
-  }, [addAuditLog, addToast]);
+    addToast({ title: "Tier Requirement Updated", description: `Restricted to ${tierRequirement} in database.`, type: "info" });
+
+    try {
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + `/superadmin/ai-engines/${id}/status`;
+      const res = await fetch(apiUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ tier_requirement: tierRequirement }),
+      });
+      if (res.ok) {
+        await refreshEngines();
+      }
+    } catch (err) {
+      console.warn("Failed to update tier requirement in database:", err);
+    }
+  }, [addAuditLog, addToast, refreshEngines]);
+
+  const probeEngineHealth = useCallback(async (engineId: string): Promise<{ online: boolean; latencyMs: number; message?: string }> => {
+    const eng = engines.find((e) => e.id === engineId);
+    if (!eng || !eng.baseUrl) {
+      return { online: false, latencyMs: 0, message: "No endpoint URL configured" };
+    }
+
+    const t0 = performance.now();
+    try {
+      let probeUrl = eng.baseUrl;
+      const headers: Record<string, string> = {};
+      const key = eng.apiKey || "sk-ibrasoft-gpu-voice";
+
+      if (eng.category === "llm") {
+        probeUrl = eng.baseUrl.endsWith("/v1") ? `${eng.baseUrl}/models` : `${eng.baseUrl}/v1/models`;
+        headers["Authorization"] = `Bearer ${key}`;
+      } else {
+        probeUrl = eng.baseUrl.replace(/\/+$/, "") + "/health";
+        headers["X-API-Key"] = key;
+        headers["Authorization"] = `Bearer ${key}`;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const res = await fetch(probeUrl, {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      const latencyMs = Math.round(performance.now() - t0);
+      if (res.ok) {
+        setEngines((prev) => prev.map((e) => e.id === engineId ? { ...e, latencyAvgMs: latencyMs, status: "active" } : e));
+        return { online: true, latencyMs, message: `Status ${res.status} OK` };
+      } else {
+        return { online: false, latencyMs, message: `HTTP ${res.status}` };
+      }
+    } catch (err: any) {
+      const latencyMs = Math.round(performance.now() - t0);
+      return { online: false, latencyMs, message: err.message || "Unreachable" };
+    }
+  }, [engines]);
 
   const forceTerminateCall = useCallback((callId: string) => {
     setGlobalCalls((prev) =>
@@ -1159,10 +1291,13 @@ export function SuperAdminProvider({ children }: { children: ReactNode }) {
         setDefaultCarrier,
         deleteSipCarrier,
         engines,
+        refreshEngines,
         addCustomEngine,
+        updateCustomEngine,
         toggleEngineStatus,
         deleteEngine,
         updateEngineTierRequirement,
+        probeEngineHealth,
         globalCalls,
         refreshGlobalCalls,
         forceTerminateCall,
@@ -1230,11 +1365,14 @@ const fallbackSuperAdminState: SuperAdminContextType = {
   updateSipCarrierStatus: () => {},
   setDefaultCarrier: () => {},
   deleteSipCarrier: () => {},
-  engines: initialVoiceEngines,
+  engines: [],
+  refreshEngines: async () => {},
   addCustomEngine: () => {},
+  updateCustomEngine: () => {},
   toggleEngineStatus: () => {},
   deleteEngine: () => {},
   updateEngineTierRequirement: () => {},
+  probeEngineHealth: async () => ({ online: true, latencyMs: 45 }),
   globalCalls: [],
   refreshGlobalCalls: async () => {},
   forceTerminateCall: () => {},
