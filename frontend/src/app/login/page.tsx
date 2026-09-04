@@ -158,7 +158,7 @@ function LoginFormContent() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form action="#" method="POST" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Email Field */}
             <div>
               <label className="block text-xs font-semibold text-[#172033] mb-1.5">
