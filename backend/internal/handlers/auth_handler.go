@@ -84,14 +84,16 @@ func (h *AuthHandler) ensureSchemaAndSeed() {
 
 	// 4. Ensure tenant_id column and indices on all tenant tables for database isolation
 	tenantTables := []string{
-		"agents", "contacts", "leads", "campaigns", "call_records",
+		"users", "agents", "contacts", "leads", "campaigns", "call_records",
 		"appointments", "knowledge_base", "ab_experiments", "flow_definitions",
 		"webhooks", "custom_forms", "website_widgets",
 	}
 
 	for _, table := range tenantTables {
 		alterQuery := fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS tenant_id INT DEFAULT 1;`, table)
-		_, _ = h.db.Exec(ctx, alterQuery)
+		if _, err := h.db.Exec(ctx, alterQuery); err != nil {
+			log.Printf("Migration alter error on table %s: %v", table, err)
+		}
 		idxQuery := fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_%s_tenant_id ON %s(tenant_id);`, table, table)
 		_, _ = h.db.Exec(ctx, idxQuery)
 	}
@@ -101,7 +103,9 @@ func (h *AuthHandler) ensureSchemaAndSeed() {
 	INSERT INTO tenants (id, tenant_name, admin_name, admin_email, status, mrr, credits_balance)
 	VALUES (1, 'Apex Voice Enterprise', 'Sarah Jenkins', 'admin@apexvoice.ai', 'production', 1499.00, 500.00)
 	ON CONFLICT (id) DO NOTHING;`
-	_, _ = h.db.Exec(ctx, seedTenantQuery)
+	if _, err := h.db.Exec(ctx, seedTenantQuery); err != nil {
+		log.Printf("Seed tenant error: %v", err)
+	}
 
 	superAdminHash, _ := h.authService.HashPassword("MasterSuperAdminKey2026!")
 	adminHash, _ := h.authService.HashPassword("Admin@123")
@@ -112,7 +116,9 @@ func (h *AuthHandler) ensureSchemaAndSeed() {
 	('usr-superadmin-1', 'Alexander Vance', 'alexander@apexsuperadmin.io', $1, 'super_admin', 0, '/avatars/alexander.png', '+1 (555) 019-9900', 'Apex Global Master Console', 'active', NOW(), NOW()),
 	('usr-admin-1', 'Sarah Jenkins', 'admin@apexvoice.ai', $2, 'admin', 1, '/avatars/sarah.png', '+1 (555) 234-5678', 'Apex Voice Enterprise', 'active', NOW(), NOW())
 	ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, status = 'active';`
-	_, _ = h.db.Exec(ctx, seedUsersQuery, superAdminHash, adminHash)
+	if _, err := h.db.Exec(ctx, seedUsersQuery, superAdminHash, adminHash); err != nil {
+		log.Printf("Seed users error: %v", err)
+	}
 }
 
 type LoginRequest struct {
