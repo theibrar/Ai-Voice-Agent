@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     role VARCHAR(50) DEFAULT 'user',             -- 'user', 'admin', 'super_admin'
+    tenant_id INT DEFAULT 1,
     avatar VARCHAR(255) DEFAULT '/avatars/default.png',
     phone VARCHAR(50) DEFAULT '+1 (555) 019-2831',
     company VARCHAR(255) DEFAULT 'Apex Voice AI',
