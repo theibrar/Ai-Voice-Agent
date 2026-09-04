@@ -54,11 +54,7 @@ export const getApiBase = (): string => {
     if (envUrl && !envUrl.includes("localhost")) {
       return envUrl;
     }
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return `${protocol}//${hostname}:8080/api/v1`;
-    }
+    return "/api/v1";
   }
   return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
 };
