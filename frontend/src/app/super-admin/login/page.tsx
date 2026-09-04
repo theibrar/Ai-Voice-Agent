@@ -154,11 +154,7 @@ export default function SuperAdminLoginPage() {
             </div>
           )}
 
-<<<<<<< HEAD
           <form action="javascript:void(0)" onSubmit={(e) => { e.preventDefault(); handleSuperAdminLogin(e); }} className="space-y-4 text-xs">
-=======
-          <form action="#" method="POST" onSubmit={handleSuperAdminLogin} className="space-y-4 text-xs">
->>>>>>> 0d15d5456204e713a0110ed752436f115ffad19f
             <div>
               <label className="font-bold text-[#0F172A] block mb-1.5">Master Operator Email</label>
               <div className="relative">

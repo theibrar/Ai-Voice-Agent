@@ -158,11 +158,7 @@ function LoginFormContent() {
             </div>
           )}
 
-<<<<<<< HEAD
           <form action="javascript:void(0)" onSubmit={(e) => { e.preventDefault(); handleSubmit(onSubmit)(e); }} className="space-y-4">
-=======
-          <form action="#" method="POST" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
->>>>>>> 0d15d5456204e713a0110ed752436f115ffad19f
             {/* Email Field */}
             <div>
               <label className="block text-xs font-semibold text-[#172033] mb-1.5">

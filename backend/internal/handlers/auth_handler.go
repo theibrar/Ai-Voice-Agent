@@ -103,13 +103,9 @@ func (h *AuthHandler) ensureSchemaAndSeed() {
 	INSERT INTO tenants (id, tenant_name, admin_name, admin_email, status, mrr, credits_balance)
 	VALUES (1, 'Apex Voice Enterprise', 'Sarah Jenkins', 'admin@apexvoice.ai', 'production', 1499.00, 500.00)
 	ON CONFLICT (id) DO NOTHING;`
-<<<<<<< HEAD
 	if _, err := h.db.Exec(ctx, seedTenantQuery); err != nil {
 		log.Printf("Seed tenant error: %v", err)
 	}
-=======
-	_, _ = h.db.Exec(ctx, seedTenantQuery)
->>>>>>> 0d15d5456204e713a0110ed752436f115ffad19f
 
 	superAdminHash, _ := h.authService.HashPassword("MasterSuperAdminKey2026!")
 	adminHash, _ := h.authService.HashPassword("Admin@123")
@@ -120,13 +116,9 @@ func (h *AuthHandler) ensureSchemaAndSeed() {
 	('usr-superadmin-1', 'Alexander Vance', 'alexander@apexsuperadmin.io', $1, 'super_admin', 0, '/avatars/alexander.png', '+1 (555) 019-9900', 'Apex Global Master Console', 'active', NOW(), NOW()),
 	('usr-admin-1', 'Sarah Jenkins', 'admin@apexvoice.ai', $2, 'admin', 1, '/avatars/sarah.png', '+1 (555) 234-5678', 'Apex Voice Enterprise', 'active', NOW(), NOW())
 	ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, status = 'active';`
-<<<<<<< HEAD
 	if _, err := h.db.Exec(ctx, seedUsersQuery, superAdminHash, adminHash); err != nil {
 		log.Printf("Seed users error: %v", err)
 	}
-=======
-	_, _ = h.db.Exec(ctx, seedUsersQuery, superAdminHash, adminHash)
->>>>>>> 0d15d5456204e713a0110ed752436f115ffad19f
 }
 
 type LoginRequest struct {
