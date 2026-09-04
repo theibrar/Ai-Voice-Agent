@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    allowedDevOrigins: ["agents.ibrasoft.com", "*.ibrasoft.com", "localhost:3000", "127.0.0.1:3000"],
+  },
   async rewrites() {
     return [
       {

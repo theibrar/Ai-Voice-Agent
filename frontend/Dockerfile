@@ -11,7 +11,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+ENV NEXT_TELEMETRY_DISABLED=1
+
 EXPOSE 3000
 
-# Next.js dev server run with 0.0.0.0 binding
+# Next.js server run with 0.0.0.0 binding
 CMD ["npm", "run", "dev", "--", "-H", "0.0.0.0"]
