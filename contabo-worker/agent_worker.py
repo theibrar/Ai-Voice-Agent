@@ -52,6 +52,26 @@ LIVEKIT_URL        = os.getenv("LIVEKIT_URL",        "ws://127.0.0.1:7880")
 LIVEKIT_API_KEY    = os.getenv("LIVEKIT_API_KEY",    "apexvoice-livekit-prod")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "0293b25a21cb1c6e6f0ec2289befcc9a707f52b082f50a27225ca2970fce5f2c")
 
+# If running inside Docker without host network mode, auto-detect container service hostname
+if os.path.exists("/.dockerenv") and ("127.0.0.1" in LIVEKIT_URL or "localhost" in LIVEKIT_URL):
+    try:
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        conn_res = sock.connect_ex(("127.0.0.1", 7880))
+        sock.close()
+        if conn_res != 0:
+            # Check if livekit-server or livekit container hostname is resolvable
+            for host_alias in ["livekit-server", "livekit"]:
+                try:
+                    socket.gethostbyname(host_alias)
+                    LIVEKIT_URL = f"ws://{host_alias}:7880"
+                    break
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
 DEFAULT_VOICE  = os.getenv("DEFAULT_VOICE",  "af_bella")
 
 # VAD energy threshold (signed 16-bit PCM amplitude, 0-32767)
@@ -783,8 +803,11 @@ def main():
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
+            ws_url=LIVEKIT_URL,
+            api_key=LIVEKIT_API_KEY,
+            api_secret=LIVEKIT_API_SECRET,
             worker_type="room",
-            max_retry=3,
+            max_retry=20,
         )
     )
 
