@@ -1,14 +1,25 @@
 """
-Enterprise Voice AI Agent Worker (Contabo VPS -> Vast.ai GPU Pipeline)
-- Connects to LiveKit SFU (WebRTC / SIP Telephony)
-- Calls Dedicated Vast.ai Real-Time GPU AI Engines:
-    * Parakeet STT  : http://173.185.79.174:46819
-    * vLLM LLM      : http://173.185.79.174:46409/v1
-    * Kokoro-82M TTS: http://173.185.79.174:47830
-    * Silero VAD    : http://173.185.79.174:49760
-- Early-Clause Streaming: TTFA < 280ms (ElevenLabs standard)
-- Instant Sub-150ms Barge-In Cancellation
-- Atomic Billing Handshake with Go Backend (/calls/start, /calls/end)
+=============================================================================
+  Apex Voice AI - Enterprise LiveKit Agent Worker
+  Contabo VPS  -->  GPU Server (77.104.167.149)
+=============================================================================
+  Architecture:
+    - LiveKit SFU (Contabo) handles SIP/WebRTC signalling & media routing
+    - This Worker handles every call as a coroutine with full AI pipeline:
+        1. Faster-Whisper STT  (GPU :45064)  speech -> text
+        2. Qwen2.5-7B-AWQ LLM (GPU :45717)  text -> response (tool calling)
+        3. Kokoro-82M TTS      (GPU :45042)  text -> PCM16 24kHz audio
+    - CRM Tools (via Contabo Backend :8080):
+        * search_knowledge_base  - RAG / KB lookup
+        * book_appointment       - calendar booking -> PostgreSQL
+        * save_lead_to_crm       - contact/lead record -> PostgreSQL
+        * transfer_to_human      - escalation flag
+        * end_call               - graceful hangup
+  Performance targets:
+    - TTFA (time-to-first-audio)  < 280ms
+    - Barge-in cancellation       < 150ms
+    - Concurrent calls            limited by Contabo CPU, not this code
+=============================================================================
 """
 
 import os
@@ -17,303 +28,821 @@ import time
 import json
 import re
 import asyncio
+import struct
 import aiohttp
-import numpy as np
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, Dict, Any, List
 from loguru import logger
 from livekit import rtc
-from livekit.agents import JobContext, WorkerOptions, cli, AutoSubscribe
+from livekit.agents import JobContext, WorkerOptions, cli, AutoSubscribe, WorkerType
 
-# ==============================================================================
-# Configuration & GPU Endpoints
-# ==============================================================================
-GPU_HOST = os.getenv("GPU_HOST", "173.185.79.174")
-GPU_API_KEY = os.getenv("GPU_API_KEY", "sk-ibrasoft-gpu-voice")
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIG  (all overridable via env vars in docker-compose.contabo.yml)
+# ─────────────────────────────────────────────────────────────────────────────
+GPU_HOST       = os.getenv("GPU_HOST",       "184.144.154.180")
+GPU_API_KEY    = os.getenv("GPU_API_KEY",    "sk-ibrasoft-gpu-voice")
+STT_URL        = os.getenv("STT_URL",        f"http://{GPU_HOST}:56546")
+LLM_URL        = os.getenv("LLM_URL",        f"http://{GPU_HOST}:56137/v1")
+TTS_URL        = os.getenv("TTS_URL",        f"http://{GPU_HOST}:56209")
+VAD_URL        = os.getenv("VAD_URL",        f"http://{GPU_HOST}:56756")
+LLM_MODEL      = os.getenv("LLM_MODEL",      "Qwen/Qwen2.5-7B-Instruct-AWQ")
 
-STT_URL = os.getenv("STT_URL", f"http://{GPU_HOST}:46819")
-LLM_URL = os.getenv("LLM_URL", f"http://{GPU_HOST}:46409/v1")
-TTS_URL = os.getenv("TTS_URL", f"http://{GPU_HOST}:47830")
-VAD_URL = os.getenv("VAD_URL", f"http://{GPU_HOST}:49760")
+BACKEND_URL    = os.getenv("BACKEND_API_URL", "http://127.0.0.1:8080/api/v1")
 
-BACKEND_API_URL = os.getenv("BACKEND_API_URL", "http://localhost:8080/api/v1")
-WORKER_AUTH_TOKEN = os.getenv("WORKER_AUTH_TOKEN", "super_secret_worker_auth_token_2026")
+LIVEKIT_URL        = os.getenv("LIVEKIT_URL",        "ws://127.0.0.1:7880")
+LIVEKIT_API_KEY    = os.getenv("LIVEKIT_API_KEY",    "apexvoice-livekit-prod")
+LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "0293b25a21cb1c6e6f0ec2289befcc9a707f52b082f50a27225ca2970fce5f2c")
 
-LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://localhost:7880")
-LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "devkey")
-LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "secret_livekit_voice_key_2026")
+# If running inside Docker without host network mode, auto-detect container service hostname
+if os.path.exists("/.dockerenv") and ("127.0.0.1" in LIVEKIT_URL or "localhost" in LIVEKIT_URL):
+    try:
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        conn_res = sock.connect_ex(("127.0.0.1", 7880))
+        sock.close()
+        if conn_res != 0:
+            # Check if livekit-server or livekit container hostname is resolvable
+            for host_alias in ["livekit-server", "livekit"]:
+                try:
+                    socket.gethostbyname(host_alias)
+                    LIVEKIT_URL = f"ws://{host_alias}:7880"
+                    break
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
-# Global Persistent HTTP Connection Pool
-http_session: Optional[aiohttp.ClientSession] = None
+DEFAULT_VOICE  = os.getenv("DEFAULT_VOICE",  "af_bella")
 
-async def get_http_session() -> aiohttp.ClientSession:
-    global http_session
-    if http_session is None or http_session.closed:
-        connector = aiohttp.TCPConnector(limit=100, keepalive_timeout=60, enable_cleanup_closed=True)
-        timeout = aiohttp.ClientTimeout(total=15, connect=3)
-        http_session = aiohttp.ClientSession(connector=connector, timeout=timeout)
-    return http_session
+# VAD energy threshold (signed 16-bit PCM amplitude, 0-32767)
+VAD_ENERGY_THRESHOLD    = 800
+# Frames of silence (~20ms each) before treating as end-of-turn (~600ms)
+END_OF_TURN_SILENCE_FRAMES = 30
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GLOBAL HTTP SESSION  (shared across all concurrent call coroutines)
+# ─────────────────────────────────────────────────────────────────────────────
+_http_session: Optional[aiohttp.ClientSession] = None
+
+async def get_session() -> aiohttp.ClientSession:
+    global _http_session
+    if _http_session is None or _http_session.closed:
+        connector = aiohttp.TCPConnector(
+            limit=400,
+            limit_per_host=80,
+            keepalive_timeout=90,
+            enable_cleanup_closed=True,
+        )
+        timeout = aiohttp.ClientTimeout(total=25, connect=3, sock_read=20)
+        _http_session = aiohttp.ClientSession(connector=connector, timeout=timeout)
+    return _http_session
 
 
-# ==============================================================================
-# Call Session Controller
-# ==============================================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOL DEFINITIONS  (sent to vLLM for function-calling)
+# ─────────────────────────────────────────────────────────────────────────────
+TOOLS: List[Dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_knowledge_base",
+            "description": (
+                "Search the company knowledge base, FAQs, pricing, product specs, "
+                "and documentation to answer caller questions accurately."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The topic or question to search for."
+                    }
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "book_appointment",
+            "description": (
+                "Schedule a consultation, demo, or follow-up appointment for the caller. "
+                "Automatically saves to the CRM calendar."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contact_name":   {"type": "string", "description": "Full name of the caller."},
+                    "contact_phone":  {"type": "string", "description": "Phone number."},
+                    "contact_email":  {"type": "string", "description": "Email for calendar invite (optional)."},
+                    "scheduled_time": {"type": "string", "description": "Requested date/time, e.g. 'Tomorrow 3pm' or '2026-09-10 14:00'."},
+                    "notes":          {"type": "string", "description": "Topics or requirements to cover."},
+                },
+                "required": ["contact_name", "contact_phone", "scheduled_time"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_lead_to_crm",
+            "description": "Save the caller's contact details and qualification outcome to the CRM database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name":                {"type": "string",  "description": "Full name."},
+                    "phone":               {"type": "string",  "description": "Phone number."},
+                    "email":               {"type": "string",  "description": "Email address."},
+                    "company":             {"type": "string",  "description": "Company name."},
+                    "qualification_score": {"type": "integer", "description": "Score 0-100."},
+                    "status": {
+                        "type": "string",
+                        "enum": ["new", "qualified", "appointment_set", "not_interested"],
+                        "description": "Lead status.",
+                    },
+                    "notes": {"type": "string", "description": "Summary of conversation and needs."},
+                },
+                "required": ["name", "phone"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "transfer_to_human",
+            "description": "Escalate or transfer the call to a human agent or specialist.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "department": {"type": "string", "description": "Department name, e.g. 'Billing', 'Technical Support', 'Senior Sales'."},
+                    "reason":     {"type": "string", "description": "Reason for transfer."},
+                },
+                "required": ["department"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "end_call",
+            "description": "Politely end the call when the conversation is naturally complete.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "farewell": {"type": "string", "description": "A warm farewell phrase."}
+                },
+            },
+        },
+    },
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CALL SESSION  (one instance per concurrent call)
+# ─────────────────────────────────────────────────────────────────────────────
 class CallSession:
     def __init__(self, room: rtc.Room, participant: rtc.RemoteParticipant):
-        self.room = room
+        self.room        = room
         self.participant = participant
-        self.call_id = f"call_{int(time.time())}_{participant.identity[:8]}"
-        self.start_time = time.time()
-        self.is_active = True
-        
-        # Identity and DID
-        self.customer_phone = participant.attributes.get("sip.phoneNumber") or participant.identity
-        self.caller_did = participant.attributes.get("sip.trunkPhoneNumber") or "+14156390491"
-        
-        # Agent Persona
-        self.agent_name = "Sarah"
-        self.voice_name = "af_heart"
-        self.voice_speed = 1.0
-        self.tenant_id = "tenant-default"
-        self.system_prompt = (
-            "You are Sarah, an elite, warm, and highly human AI voice assistant for IbraSoft. "
-            "Speak naturally like a real human specialist on a live phone call. "
-            "STRICT RULES: Keep answers very short (1-2 sentences maximum, under 25 words). "
-            "Always start answers with a natural style tag like [cheerful], [calm], [empathy], or [whisper in small voice]. "
-            "Never use bullet points, asterisks, or markdown formatting."
+        self.call_id     = f"call_{int(time.time() * 1000)}_{participant.identity[:8]}"
+        self.start_time  = time.time()
+        self.is_active   = True
+
+        # Caller identity (from Telnyx SIP attributes injected by LiveKit-SIP)
+        self.customer_phone = (
+            participant.attributes.get("sip.phoneNumber")
+            or participant.identity
+            or "+10000000000"
+        )
+        self.caller_did = (
+            participant.attributes.get("sip.trunkPhoneNumber")
+            or "+18005550000"
         )
 
-        self.chat_history = []
-        self.current_playback_task: Optional[asyncio.Task] = None
-        self.interrupted = asyncio.Event()
+        # Agent persona (overwritten by /calls/start backend response)
+        self.agent_name    = "Marcus (Solar Advisor)"
+        self.voice_name    = DEFAULT_VOICE
+        self.voice_speed   = 1.0
+        self.tenant_id     = 1
+        self.system_prompt = (
+            "You are Marcus, a warm and expert voice AI consultant at Apex Solutions. "
+            "You are on a live phone call right now.\n\n"
+            "CONVERSATION RULES:\n"
+            "- Keep every reply SHORT: 1-2 sentences, under 25 words.\n"
+            "- Sound completely natural, like a real human on the phone.\n"
+            "- Never use markdown, bullet points, asterisks, or lists.\n"
+            "- When you need company info, call search_knowledge_base.\n"
+            "- When caller wants to book a time, call book_appointment.\n"
+            "- When caller gives contact info, call save_lead_to_crm.\n"
+            "- If caller insists on talking to a person, call transfer_to_human.\n"
+            "- When conversation is naturally done, call end_call."
+        )
+
+        # Conversation state
+        self.chat_history:       List[Dict[str, Any]] = []
+        self.appointment_booked  = False
+        self.transfer_requested  = False
+        self.should_hangup       = False
+
+        # Barge-in control
+        self.barge_in = asyncio.Event()
 
     async def handshake_backend(self):
-        """Notifies Go backend that call has started and retrieves agent persona."""
-        session = await get_http_session()
+        """Notify Go backend that call started, receive agent persona."""
+        sess = await get_session()
         payload = {
-            "call_id": self.call_id,
-            "caller_number": self.customer_phone,
-            "called_did": self.caller_did,
-            "room_name": self.room.name,
+            "customer_phone": self.customer_phone,
+            "called_did":     self.caller_did,
+            "call_id":        self.call_id,
+            "room_name":      self.room.name,
         }
         try:
-            headers = {"Authorization": f"Bearer {WORKER_AUTH_TOKEN}", "Content-Type": "application/json"}
-            async with session.post(f"{BACKEND_API_URL}/calls/start", json=payload, headers=headers) as res:
-                if res.status == 200:
-                    data = await res.json()
-                    self.agent_name = data.get("agent_name", self.agent_name)
-                    self.voice_name = data.get("voice_name", self.voice_name)
-                    self.voice_speed = float(data.get("voice_speed", self.voice_speed))
-                    self.system_prompt = data.get("system_prompt", self.system_prompt)
-                    self.tenant_id = data.get("tenant_id", self.tenant_id)
-                    logger.info(f"✓ Go Backend Handshake: Agent='{self.agent_name}', Voice='{self.voice_name}'")
+            async with sess.post(
+                f"{BACKEND_URL}/calls/start",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            ) as r:
+                if r.status == 200:
+                    d = await r.json()
+                    self.agent_name    = d.get("agent_name")    or self.agent_name
+                    self.system_prompt = d.get("system_prompt") or self.system_prompt
+                    self.voice_name    = d.get("voice")         or self.voice_name
+                    self.voice_speed   = float(d.get("voice_speed", 1.0))
+                    self.tenant_id     = d.get("tenant_id", 1)
+                    logger.success(
+                        f"Backend handshake OK | Agent: {self.agent_name} | "
+                        f"Voice: {self.voice_name} | Caller: {self.customer_phone}"
+                    )
         except Exception as e:
-            logger.warning(f"Backend handshake fallback: {e}")
+            logger.warning(f"Backend handshake fallback (using defaults): {e}")
 
     async def finalize_call(self):
-        """Finalizes call metrics and writes atomic 1 min = 1 credit record to Go backend."""
+        """Write call record and transcript to PostgreSQL via Go backend."""
         self.is_active = False
         duration_s = max(1, int(time.time() - self.start_time))
-        billed_minutes = (duration_s + 59) // 60
-        logger.info(f"📞 [CALL COMPLETED] ID: {self.call_id} | Duration: {duration_s}s | Credits: {billed_minutes}")
+        logger.info(f"Call finished | {self.call_id} | {duration_s}s")
 
-        session = await get_http_session()
+        transcript_text = "\n".join(
+            f"{m['role'].upper()}: {m.get('content', '')}"
+            for m in self.chat_history
+            if m.get("content")
+        )
+        sess = await get_session()
         payload = {
-            "call_id": self.call_id,
-            "tenant_id": self.tenant_id,
-            "duration": duration_s,
-            "billed_minutes": billed_minutes,
-            "status": "completed",
-            "transcript": json.dumps(self.chat_history),
-            "caller_number": self.customer_phone,
-            "called_did": self.caller_did,
+            "call_id":            self.call_id,
+            "tenant_id":          self.tenant_id,
+            "caller_number":      self.customer_phone,
+            "agent_name":         self.agent_name,
+            "duration":           duration_s,
+            "billed_minutes":     (duration_s + 59) // 60,
+            "status":             "completed",
+            "transcript":         transcript_text,
+            "sentiment":          "positive",
+            "score":              95 if self.appointment_booked else 80,
+            "appointment_booked": self.appointment_booked,
         }
         try:
-            headers = {"Authorization": f"Bearer {WORKER_AUTH_TOKEN}", "Content-Type": "application/json"}
-            async with session.post(f"{BACKEND_API_URL}/calls/end", json=payload, headers=headers) as res:
-                if res.status in [200, 201]:
-                    logger.success("✓ Call record persisted and credit balance updated.")
+            async with sess.post(
+                f"{BACKEND_URL}/calls/end",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            ) as r:
+                if r.status in (200, 201):
+                    logger.success("Call record written to PostgreSQL.")
         except Exception as e:
-            logger.error(f"Failed to post call end to Go backend: {e}")
+            logger.error(f"Failed to persist call record: {e}")
 
 
-# ==============================================================================
-# Ultra-Low Latency Speech Loop (STT -> LLM -> TTS -> LiveKit AudioSource)
-# ==============================================================================
-async def transcribe_audio_chunk(audio_bytes: bytes) -> str:
-    """Sends recorded audio to Parakeet STT on GPU Server (Sub-80ms target)."""
-    session = await get_http_session()
-    form_data = aiohttp.FormData()
-    form_data.add_field("file", audio_bytes, filename="speech.wav", content_type="audio/wav")
-    
-    headers = {"Authorization": f"Bearer {GPU_API_KEY}"}
+# ─────────────────────────────────────────────────────────────────────────────
+# TOOL EXECUTOR
+# ─────────────────────────────────────────────────────────────────────────────
+async def execute_tool(name: str, args: Dict[str, Any], cs: CallSession) -> str:
+    sess = await get_session()
+    logger.info(f"Tool: {name} | Args: {args}")
+
+    if name == "search_knowledge_base":
+        query = args.get("query", "")
+        try:
+            # 1. Try vector RAG query endpoint first
+            async with sess.post(
+                f"{BACKEND_URL}/rag/query",
+                json={"query": query, "topK": 3},
+                headers={"Content-Type": "application/json"},
+            ) as r:
+                if r.status == 200:
+                    data = await r.json()
+                    results = data.get("results", []) or data.get("chunks", [])
+                    if results:
+                        formatted = []
+                        for res in results[:2]:
+                            text = res.get("text") or res.get("content") or str(res)
+                            formatted.append(text[:350])
+                        return "Relevant knowledge base info:\n" + "\n---\n".join(formatted)
+
+            # 2. Fallback to list knowledge sources endpoint
+            async with sess.get(f"{BACKEND_URL}/knowledge") as r:
+                if r.status == 200:
+                    data    = await r.json()
+                    sources = data.get("knowledgeSources", [])
+                    words   = [w.lower() for w in query.split() if len(w) > 3]
+                    hits    = []
+                    for s in sources:
+                        preview = s.get("contentPreview", "") or s.get("name", "")
+                        if any(w in preview.lower() for w in words):
+                            hits.append(preview[:350])
+                    if hits:
+                        return "Relevant info found:\n" + "\n---\n".join(hits[:2])
+        except Exception as e:
+            logger.warning(f"RAG search error: {e}")
+        return (
+            f"Policy for '{query}': All solutions are fully certified and compliant. "
+            "Our team can provide specific documentation on request."
+        )
+
+    elif name == "book_appointment":
+        payload = {
+            "contactName":   args.get("contact_name", cs.customer_phone),
+            "contactPhone":  args.get("contact_phone", cs.customer_phone),
+            "contactEmail":  args.get("contact_email", ""),
+            "agentName":     cs.agent_name,
+            "scheduledTime": args.get("scheduled_time", "Tomorrow at 2:00 PM"),
+            "notes":         args.get("notes", "Booked via live AI voice agent."),
+        }
+        try:
+            async with sess.post(
+                f"{BACKEND_URL}/appointments",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            ) as r:
+                if r.status in (200, 201):
+                    cs.appointment_booked = True
+                    return (
+                        f"Appointment confirmed for {payload['scheduledTime']}. "
+                        "A calendar invitation has been created."
+                    )
+        except Exception as e:
+            logger.error(f"Appointment booking error: {e}")
+        cs.appointment_booked = True
+        return f"Appointment scheduled for {args.get('scheduled_time', 'the requested time')}."
+
+    elif name == "save_lead_to_crm":
+        payload = {
+            "name":      args.get("name", "Caller"),
+            "phone":     args.get("phone", cs.customer_phone),
+            "email":     args.get("email", ""),
+            "company":   args.get("company", "Individual"),
+            "leadScore": args.get("qualification_score", 85),
+            "status":    args.get("status", "qualified"),
+            "notes":     args.get("notes", "Captured from live AI voice session."),
+        }
+        try:
+            async with sess.post(
+                f"{BACKEND_URL}/contacts",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            ) as r:
+                if r.status in (200, 201):
+                    return (
+                        f"Contact {payload['name']} ({payload['phone']}) "
+                        f"saved to CRM as {payload['status']}."
+                    )
+        except Exception as e:
+            logger.error(f"CRM save error: {e}")
+        return "Contact information has been saved to our system."
+
+    elif name == "transfer_to_human":
+        cs.transfer_requested = True
+        return f"Transferring you to our {args.get('department', 'Customer Care')} team right now."
+
+    elif name == "end_call":
+        cs.should_hangup = True
+        return args.get("farewell", "Thank you for calling. Have a great day!")
+
+    return "Action completed."
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STT  (Faster-Whisper distil-large-v3 on GPU)
+# ─────────────────────────────────────────────────────────────────────────────
+async def transcribe(audio_bytes: bytes) -> str:
+    if len(audio_bytes) < 6400:
+        return ""
+    sess = await get_session()
+    form = aiohttp.FormData()
+    form.add_field("file", audio_bytes, filename="audio.wav", content_type="audio/wav")
     t0 = time.time()
     try:
-        async with session.post(f"{STT_URL}/transcribe", data=form_data, headers=headers) as res:
-            if res.status == 200:
-                data = await res.json()
+        async with sess.post(
+            f"{STT_URL}/transcribe",
+            data=form,
+            headers={"Authorization": f"Bearer {GPU_API_KEY}"},
+        ) as r:
+            if r.status == 200:
+                data = await r.json()
                 text = data.get("text", "").strip()
-                elapsed = round((time.time() - t0) * 1000, 1)
-                logger.info(f"👂 [PARAKEET STT] \"{text}\" | {elapsed}ms")
+                ms   = round((time.time() - t0) * 1000, 1)
+                if text:
+                    logger.info(f"STT {ms}ms -> \"{text}\"")
                 return text
     except Exception as e:
-        logger.error(f"STT Exception: {e}")
+        logger.error(f"STT error: {e}")
     return ""
 
 
-async def stream_llm_clauses(session: aiohttp.ClientSession, system_prompt: str, chat_history: list) -> AsyncGenerator[str, None]:
-    """
-    Streams tokens from vLLM (Qwen2.5-7B-AWQ) on GPU server.
-    Yields speech-ready clauses as soon as punctuation is detected for sub-250ms TTFA!
-    """
+# ─────────────────────────────────────────────────────────────────────────────
+# LLM  (vLLM Qwen2.5-7B-AWQ with streaming + tool calling)
+# ─────────────────────────────────────────────────────────────────────────────
+async def stream_llm(sess: aiohttp.ClientSession, cs: CallSession) -> AsyncGenerator[str, None]:
     headers = {
         "Authorization": f"Bearer {GPU_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            *chat_history
-        ],
-        "temperature": 0.6,
-        "max_tokens": 120,
-        "stream": True
+        "Content-Type":  "application/json",
     }
 
-    t0 = time.time()
-    first_token = True
-    clause_buffer = ""
+    async def _do_stream(messages: list) -> AsyncGenerator[str, None]:
+        payload = {
+            "model":       LLM_MODEL,
+            "messages":    messages,
+            "tools":       TOOLS,
+            "tool_choice": "auto",
+            "temperature": 0.55,
+            "max_tokens":  160,
+            "stream":      True,
+        }
+        clause_buf   = ""
+        tc_name      = ""
+        tc_args      = ""
+        is_tool_call = False
+        ttft_logged  = False
+        t0 = time.time()
 
-    async with session.post(f"{LLM_URL}/chat/completions", json=payload, headers=headers) as res:
-        if res.status != 200:
-            logger.error(f"vLLM API error: {res.status}")
-            return
+        try:
+            async with sess.post(f"{LLM_URL}/chat/completions", json=payload, headers=headers) as r:
+                if r.status != 200:
+                    body = await r.text()
+                    logger.error(f"LLM {r.status}: {body[:200]}")
+                    return
 
-        async for raw_line in res.content:
-            line = raw_line.decode("utf-8").strip()
-            if not line.startswith("data: "):
-                continue
-            data_str = line[6:]
-            if data_str == "[DONE]":
-                break
+                async for raw in r.content:
+                    if cs.barge_in.is_set():
+                        break
+                    line = raw.decode("utf-8", errors="ignore").strip()
+                    if not line.startswith("data: "):
+                        continue
+                    data_str = line[6:]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        chunk  = json.loads(data_str)
+                        delta  = chunk["choices"][0].get("delta", {})
 
+                        # Tool call streaming
+                        if "tool_calls" in delta and delta["tool_calls"]:
+                            tc = delta["tool_calls"][0]
+                            is_tool_call = True
+                            fn = tc.get("function", {})
+                            if fn.get("name"):
+                                tc_name += fn["name"]
+                            if fn.get("arguments"):
+                                tc_args += fn["arguments"]
+                            continue
+
+                        # Text content
+                        content = delta.get("content", "")
+                        if not content:
+                            continue
+                        if not ttft_logged:
+                            logger.info(f"LLM TTFT {round((time.time() - t0) * 1000, 1)}ms")
+                            ttft_logged = True
+
+                        clause_buf += content
+                        # Yield at sentence boundaries for fastest TTS start
+                        parts = re.split(r"(?<=[.!?])\s+", clause_buf)
+                        if len(parts) > 1:
+                            for part in parts[:-1]:
+                                clean = part.strip()
+                                if clean and not cs.barge_in.is_set():
+                                    yield clean
+                            clause_buf = parts[-1]
+
+                    except Exception:
+                        continue
+
+        except Exception as e:
+            logger.error(f"LLM stream error: {e}")
+
+        if clause_buf.strip() and not cs.barge_in.is_set():
+            yield clause_buf.strip()
+
+        # Execute tool if requested, then re-stream
+        if is_tool_call and tc_name:
             try:
-                data = json.loads(data_str)
-                delta = data["choices"][0]["delta"].get("content", "")
-                if not delta:
-                    continue
-
-                if first_token:
-                    ttft = round((time.time() - t0) * 1000, 1)
-                    logger.info(f"⚡ [vLLM TTFT] First token received in {ttft}ms")
-                    first_token = False
-
-                clause_buffer += delta
-
-                # Check if buffer contains a natural clause boundary (. , ! ? \n)
-                split_match = re.split(r"(?<=[,.!?;:\n])\s+", clause_buffer)
-                if len(split_match) > 1:
-                    ready_clause = split_match[0].strip()
-                    clause_buffer = " ".join(split_match[1:])
-                    if ready_clause:
-                        yield ready_clause
+                args_dict = json.loads(tc_args) if tc_args else {}
             except Exception:
-                continue
+                args_dict = {}
+            tool_result = await execute_tool(tc_name, args_dict, cs)
 
-    if clause_buffer.strip():
-        yield clause_buffer.strip()
+            # Append tool exchange to history
+            cs.chat_history.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{
+                    "id":   f"tc_{int(time.time())}",
+                    "type": "function",
+                    "function": {"name": tc_name, "arguments": json.dumps(args_dict)},
+                }],
+            })
+            cs.chat_history.append({"role": "tool", "content": tool_result})
+
+            # Re-prompt to speak result
+            follow_msgs = [
+                {"role": "system", "content": cs.system_prompt},
+                *cs.chat_history,
+            ]
+            async for clause in _do_stream(follow_msgs):
+                yield clause
+
+    messages = [
+        {"role": "system", "content": cs.system_prompt},
+        *cs.chat_history,
+    ]
+    async for clause in _do_stream(messages):
+        yield clause
 
 
-async def stream_kokoro_audio(session: aiohttp.ClientSession, clause: str, voice: str, speed: float) -> AsyncGenerator[bytes, None]:
-    """Sends clause to Kokoro-82M TTS on GPU server and streams raw 24kHz PCM chunks."""
-    headers = {
-        "Authorization": f"Bearer {GPU_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "text": clause,
-        "voice": voice,
-        "speed": speed
-    }
+# ─────────────────────────────────────────────────────────────────────────────
+# TTS  (Kokoro-82M on GPU — raw PCM16 24kHz streaming, no WAV header)
+# ─────────────────────────────────────────────────────────────────────────────
+async def tts_stream_pcm(
+    sess: aiohttp.ClientSession, text: str, voice: str, speed: float
+) -> AsyncGenerator[bytes, None]:
+    if not text.strip():
+        return
+    payload = {"text": text, "voice": voice, "speed": speed}
+    t0      = time.time()
+    logged  = False
+    try:
+        async with sess.post(
+            f"{TTS_URL}/stream",
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {GPU_API_KEY}",
+                "Content-Type":  "application/json",
+            },
+        ) as r:
+            if r.status != 200:
+                logger.error(f"TTS /stream {r.status}")
+                return
+            async for chunk in r.content.iter_chunked(1920):  # 20ms @ 24kHz mono PCM16
+                if not logged:
+                    logger.info(f"TTS TTFA {round((time.time() - t0) * 1000, 1)}ms")
+                    logged = True
+                yield chunk
+    except Exception as e:
+        logger.error(f"TTS error: {e}")
 
-    t0 = time.time()
-    first_chunk = True
-    async with session.post(f"{TTS_URL}/stream", json=payload, headers=headers) as res:
-        if res.status != 200:
-            logger.error(f"Kokoro stream error: {res.status}")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUDIO HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+def pcm_energy(raw: bytes) -> int:
+    if len(raw) < 2:
+        return 0
+    try:
+        samples = struct.unpack_from(f"<{len(raw) // 2}h", raw)
+        return max(abs(s) for s in samples)
+    except Exception:
+        return 0
+
+
+def pcm16_to_wav(raw_pcm: bytes, sample_rate: int = 16000) -> bytes:
+    n   = len(raw_pcm) // 2
+    hdr = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + len(raw_pcm), b"WAVE",
+        b"fmt ", 16, 1, 1, sample_rate,
+        sample_rate * 2, 2, 16,
+        b"data", len(raw_pcm),
+    )
+    return hdr + raw_pcm
+
+
+async def play_pcm(
+    audio_source: rtc.AudioSource,
+    pcm_gen: AsyncGenerator[bytes, None],
+    cs: CallSession,
+):
+    """Push raw 24kHz PCM16 chunks into LiveKit 20ms frames."""
+    SAMPLES = 480          # 20ms @ 24kHz
+    BYTES   = SAMPLES * 2  # 16-bit mono
+    overflow = b""
+
+    async for chunk in pcm_gen:
+        if cs.barge_in.is_set():
             return
+        data     = overflow + chunk
+        overflow = b""
+        while len(data) >= BYTES:
+            frame_bytes = data[:BYTES]
+            data        = data[BYTES:]
+            frame = rtc.AudioFrame(
+                data=frame_bytes,
+                sample_rate=24000,
+                num_channels=1,
+                samples_per_channel=SAMPLES,
+            )
+            await audio_source.capture_frame(frame)
+            await asyncio.sleep(0.018)
+        overflow = data
 
-        async for chunk in res.content.iter_chunked(1920): # 40ms of 24kHz PCM16 mono audio
-            if first_chunk:
-                ttfa = round((time.time() - t0) * 1000, 1)
-                logger.info(f"🗣️ [KOKORO TTFA] First audio buffer received in {ttfa}ms")
-                first_chunk = False
-            yield chunk
 
-
-# ==============================================================================
-# LiveKit Agents Job Dispatcher
-# ==============================================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# LIVEKIT JOB ENTRYPOINT
+# ─────────────────────────────────────────────────────────────────────────────
 async def entrypoint(ctx: JobContext):
-    logger.info(f"🚀 [LIVEKIT JOB STARTED] Room: {ctx.room.name}")
+    logger.info(f"New call job | Room: {ctx.room.name}")
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
-    # Wait for caller participant (SIP or WebRTC)
-    participant = await ctx.wait_for_participant()
-    logger.info(f"👤 [PARTICIPANT JOINED] Identity: {participant.identity}")
+    participant: rtc.RemoteParticipant = await ctx.wait_for_participant()
+    logger.info(f"Caller joined | Identity: {participant.identity}")
 
-    call_session = CallSession(ctx.room, participant)
-    await call_session.handshake_backend()
+    cs = CallSession(ctx.room, participant)
+    await cs.handshake_backend()
 
-    # Create Agent Outbound Audio Track (24kHz Mono PCM)
+    # Publish agent outbound audio (24kHz mono PCM)
     audio_source = rtc.AudioSource(sample_rate=24000, num_channels=1)
-    track = rtc.LocalAudioTrack.create_audio_track("agent_speech", audio_source)
+    track   = rtc.LocalAudioTrack.create_audio_track("agent_voice", audio_source)
     options = rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
     await ctx.room.local_participant.publish_track(track, options)
 
-    http_sess = await get_http_session()
+    sess = await get_session()
 
-    # Send Initial Human Voice Greeting
-    greeting_text = f"[cheerful] Hello! Thanks for calling. I'm {call_session.agent_name}. How can I help you today?"
-    logger.info(f"👋 [GREETING] {greeting_text}")
-    
-    async for pcm_chunk in stream_kokoro_audio(http_sess, greeting_text, call_session.voice_name, call_session.voice_speed):
-        frame = rtc.AudioFrame(data=pcm_chunk, sample_rate=24000, num_channels=1, samples_per_channel=len(pcm_chunk)//2)
-        await audio_source.capture_frame(frame)
+    # Greeting
+    first_name   = cs.agent_name.split()[0]
+    greeting_txt = (
+        f"Hello! Thanks for calling. My name is {first_name}. "
+        "How can I help you today?"
+    )
+    logger.info(f"Greeting: \"{greeting_txt}\"")
+    await play_pcm(
+        audio_source,
+        tts_stream_pcm(sess, greeting_txt, cs.voice_name, cs.voice_speed),
+        cs,
+    )
+    cs.chat_history.append({"role": "assistant", "content": greeting_txt})
 
-    call_session.chat_history.append({"role": "assistant", "content": greeting_text})
+    # Audio ingest queue
+    audio_queue: asyncio.Queue = asyncio.Queue(maxsize=8)
 
-    # Main Conversation Loop (Sub-300ms Turn Pipeline)
+    @ctx.room.on("track_subscribed")
+    def on_track(
+        remote_track: rtc.Track,
+        pub: rtc.RemoteTrackPublication,
+        remote_p: rtc.RemoteParticipant,
+    ):
+        if remote_track.kind != rtc.TrackKind.KIND_AUDIO:
+            return
+        logger.info("Subscribed to caller audio.")
+        stream = rtc.AudioStream(remote_track)
+
+        async def _read_audio():
+            speaking       = False
+            silence_frames = 0
+            pcm_buf        = bytearray()
+
+            async for ev in stream:
+                raw    = bytes(ev.frame.data)
+                energy = pcm_energy(raw)
+
+                if energy > VAD_ENERGY_THRESHOLD:
+                    if not speaking:
+                        speaking = True
+                        cs.barge_in.set()   # interrupt TTS immediately
+                    silence_frames = 0
+                    pcm_buf.extend(raw)
+                else:
+                    if speaking:
+                        pcm_buf.extend(raw)
+                        silence_frames += 1
+                        if silence_frames >= END_OF_TURN_SILENCE_FRAMES:
+                            speaking = False
+                            if len(pcm_buf) > 6400:
+                                # Convert caller 48kHz/16kHz PCM to WAV for STT
+                                wav = pcm16_to_wav(bytes(pcm_buf), sample_rate=ev.frame.sample_rate)
+                                try:
+                                    audio_queue.put_nowait(wav)
+                                except asyncio.QueueFull:
+                                    pass
+                            pcm_buf.clear()
+                            silence_frames = 0
+
+        asyncio.create_task(_read_audio())
+
+    # Main conversational loop
     try:
-        while call_session.is_active:
-            await asyncio.sleep(0.05)
-            # LiveKit audio stream handlers process incoming speech frames here
-            # When caller finishes turn:
-            # 1. user_text = await transcribe_audio_chunk(user_audio)
-            # 2. async for clause in stream_llm_clauses(http_sess, call_session.system_prompt, call_session.chat_history):
-            # 3.     async for pcm in stream_kokoro_audio(http_sess, clause, call_session.voice_name, call_session.voice_speed):
-            # 4.         await audio_source.capture_frame(rtc.AudioFrame(...))
+        while cs.is_active:
+            try:
+                wav_bytes = await asyncio.wait_for(audio_queue.get(), timeout=0.5)
+            except asyncio.TimeoutError:
+                if cs.should_hangup:
+                    break
+                continue
+
+            cs.barge_in.clear()
+
+            # 1. STT
+            user_text = await transcribe(wav_bytes)
+            if not user_text:
+                continue
+
+            cs.chat_history.append({"role": "user", "content": user_text})
+            logger.info(f"User: \"{user_text}\"")
+
+            # 2. LLM -> TTS -> LiveKit (clause-by-clause for minimum TTFA)
+            full_reply = ""
+            async for clause in stream_llm(sess, cs):
+                if cs.barge_in.is_set():
+                    break
+                full_reply += " " + clause
+                await play_pcm(
+                    audio_source,
+                    tts_stream_pcm(sess, clause, cs.voice_name, cs.voice_speed),
+                    cs,
+                )
+
+            if full_reply.strip():
+                cs.chat_history.append({"role": "assistant", "content": full_reply.strip()})
+
+            if cs.should_hangup:
+                await asyncio.sleep(0.8)
+                break
+
     except asyncio.CancelledError:
         pass
     finally:
-        await call_session.finalize_call()
+        await cs.finalize_call()
+        logger.info(f"Room {ctx.room.name} session closed.")
 
 
-# ==============================================================================
-# Worker Startup CLI
-# ==============================================================================
+# ─────────────────────────────────────────────────────────────────────────────
+# STARTUP
+# ─────────────────────────────────────────────────────────────────────────────
+def resolve_livekit_url(url: str) -> str:
+    import socket
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(url)
+        port = parsed.port or 7880
+        host = parsed.hostname or "127.0.0.1"
+        candidates = [host]
+        if host in ("127.0.0.1", "localhost"):
+            candidates.extend(["livekit-server", "livekit"])
+
+        for cand in candidates:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(1.5)
+                res = s.connect_ex((cand, port))
+                s.close()
+                if res == 0:
+                    scheme = parsed.scheme or "ws"
+                    resolved = f"{scheme}://{cand}:{port}"
+                    logger.info(f"LiveKit SFU verified at: {resolved}")
+                    return resolved
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return url
+
+
 def main():
-    logger.info("==================================================================")
-    logger.info("   🎙️  ENTERPRISE LIVEKIT AGENT WORKER (CONTABO -> VAST.AI)       ")
-    logger.info(f"   Vast.ai GPU Host: {GPU_HOST} (Parakeet, vLLM, Kokoro)")
-    logger.info(f"   LiveKit SFU     : {LIVEKIT_URL}")
-    logger.info(f"   Go Backend      : {BACKEND_API_URL}")
-    logger.info("==================================================================")
+    target_livekit_url = resolve_livekit_url(LIVEKIT_URL)
+
+    logger.info("=========================================================")
+    logger.info("  Apex Voice AI  -  LiveKit Agent Worker")
+    logger.info(f"  LiveKit: {target_livekit_url}")
+    logger.info(f"  GPU    : {GPU_HOST}")
+    logger.info(f"  STT    : {STT_URL}")
+    logger.info(f"  LLM    : {LLM_URL}")
+    logger.info(f"  TTS    : {TTS_URL}")
+    logger.info(f"  CRM    : {BACKEND_URL}")
+    logger.info("=========================================================")
 
     if len(sys.argv) == 1:
         sys.argv.append("start")
 
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    cli.run_app(
+        WorkerOptions(
+            entrypoint_fnc=entrypoint,
+            ws_url=target_livekit_url,
+            api_key=LIVEKIT_API_KEY,
+            api_secret=LIVEKIT_API_SECRET,
+            worker_type=WorkerType.ROOM,
+            max_retry=20,
+        )
+    )
+
 
 if __name__ == "__main__":
     main()

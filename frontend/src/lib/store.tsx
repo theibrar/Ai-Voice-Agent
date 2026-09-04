@@ -579,9 +579,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const res = await apiFetch(apiUrl);
       if (res.ok) {
         const data = await res.json();
-        if (data && Array.isArray(data.agents) && data.agents.length > 0) {
+        if (data && Array.isArray(data.agents)) {
           setAgents(data.agents);
         }
+
       }
     } catch (err) {
       console.warn("Could not fetch agents from backend database:", err);
@@ -599,10 +600,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updated),
       });
+      await refreshAgents();
     } catch (err) {
       console.warn("Failed to update agent in database:", err);
     }
-  }, [addToast]);
+  }, [addToast, refreshAgents]);
 
   const toggleAgentStatus = useCallback(async (agentId: string) => {
     const target = agents.find((a) => a.id === agentId);
@@ -627,10 +629,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus }),
       });
+      await refreshAgents();
     } catch (err) {
       console.warn("Failed to update agent status in database:", err);
     }
-  }, [agents, addToast]);
+  }, [agents, addToast, refreshAgents]);
 
   const addAgent = useCallback(async (newAgent: Agent) => {
     setAgents((prev) => [newAgent, ...prev]);
@@ -643,10 +646,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newAgent),
       });
+      await refreshAgents();
     } catch (err) {
       console.warn("Failed to persist agent to database:", err);
     }
-  }, [addToast]);
+  }, [addToast, refreshAgents]);
 
   const duplicateAgent = useCallback(async (agentId: string) => {
     const original = agents.find((a) => a.id === agentId);
@@ -674,10 +678,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dup),
       });
+      await refreshAgents();
     } catch (err) {
       console.warn("Failed to persist duplicated agent to database:", err);
     }
-  }, [agents, addToast]);
+  }, [agents, addToast, refreshAgents]);
 
   const deleteAgent = useCallback(async (agentId: string) => {
     const target = agents.find((a) => a.id === agentId);
@@ -687,10 +692,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1') + `/agents/${agentId}`;
       await apiFetch(apiUrl, { method: "DELETE" });
+      await refreshAgents();
     } catch (err) {
       console.warn("Failed to delete agent from database:", err);
     }
-  }, [agents, addToast]);
+  }, [agents, addToast, refreshAgents]);
+
 
   const refreshCampaigns = useCallback(async () => {
     try {
@@ -962,11 +969,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const [availableLlmModels, setAvailableLlmModels] = useState<LLMModelOption[]>([
-    { id: "eng-gemini-3-1-pro", name: "Gemini 3.1 Pro", provider: "Google Gemini", fullName: "Gemini 3.1 Pro (Google Gemini)" },
-    { id: "eng-gemini-3-7-flash", name: "Gemini 3.7 Flash", provider: "Google Gemini", fullName: "Gemini 3.7 Flash (Google Gemini)" },
-    { id: "eng-deepseek-v4-pro", name: "DeepSeek-V4-Pro", provider: "DeepSeek", fullName: "DeepSeek-V4-Pro (DeepSeek)" },
-    { id: "eng-gpt-5-6-flagship", name: "GPT-5.6 Flagship", provider: "OpenAI", fullName: "GPT-5.6 Flagship (OpenAI)" },
-    { id: "eng-gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", fullName: "GPT-4o Mini (OpenAI)" },
+    { id: "Qwen/Qwen2.5-7B-Instruct-AWQ", name: "Qwen 2.5 7B AWQ", provider: "vLLM Neural LLM Engine", fullName: "Qwen/Qwen2.5-7B-Instruct-AWQ" },
   ]);
 
   const refreshLlmModels = useCallback(async () => {
@@ -1461,8 +1464,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [addToast]);
 
+  useEffect(() => {
+
+    refreshAgents();
+    refreshCampaigns();
+    refreshCalls();
+    refreshPhoneNumbers();
+    refreshWebsiteWidgets();
+  }, [refreshAgents, refreshCampaigns, refreshCalls, refreshPhoneNumbers, refreshWebsiteWidgets]);
+
   return (
     <AppContext.Provider
+
       value={{
         websiteWidgets,
         setWebsiteWidgets,

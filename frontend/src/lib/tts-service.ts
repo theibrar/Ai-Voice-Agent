@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Real-Time Kokoro-82M Neural Audio Synthesis Client
  * Exclusively connects to the GPU worker cluster at server.ibrasoft.com.
  * Local browser speech synthesis is STRICTLY DISABLED.
@@ -34,19 +34,29 @@ export async function playKokoroNeuralAudio(
   const startTime = Date.now();
 
   const endpoints = [
+    "http://184.144.154.180:56209/synthesize",
     "https://server.ibrasoft.com/api/v1/tts/synthesize",
-    "http://85.218.235.6:8088/synthesize",
   ];
 
   for (const endpoint of endpoints) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice, speed }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": "sk-ibrasoft-gpu-voice",
+          "Authorization": "Bearer sk-ibrasoft-gpu-voice",
+        },
+        body: JSON.stringify({
+          text,
+          voice,
+          speed: speed || 1.0,
+          gain: 1.0,
+          lang: "en-us",
+        }),
         signal: controller.signal,
       }).catch(() => null);
 

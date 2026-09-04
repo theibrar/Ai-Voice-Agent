@@ -52,7 +52,7 @@ export default function EditAgentPage() {
   });
   const [selectedLlmId, setSelectedLlmId] = useState<string>(() => {
     const matched = llmOptions.find((m) => m.fullName === agent?.llmModel || m.name === agent?.llmModel);
-    return matched?.id || llmOptions[0]?.id || "gpt-4o-mini";
+    return matched?.id || llmOptions[0]?.id || "Qwen/Qwen2.5-7B-Instruct-AWQ";
   });
   const [isLlmDropdownOpen, setIsLlmDropdownOpen] = useState(false);
   const [greeting, setGreeting] = useState(agent.greeting);
@@ -139,7 +139,7 @@ export default function EditAgentPage() {
       assignedPhoneNumber: selectedPhone ? (selectedPhone.formattedNumber || selectedPhone.number) : undefined,
       assignedPhoneNumberId: selectedPhone?.id || undefined,
       voice: {
-        provider: "Kokoro Neural",
+        provider: "Kokoro Neural" as const,
         voiceId: selectedVoice.id,
         voiceName: selectedVoice.voiceName,
         gender: selectedVoice.gender,
@@ -171,12 +171,10 @@ export default function EditAgentPage() {
     if (selectedPhone) {
       assignPhoneNumber(selectedPhone.id, {
         assignedAgentId: agent.id,
-        assignedAgentName: name,
       });
     } else if (agent.assignedPhoneNumberId) {
       assignPhoneNumber(agent.assignedPhoneNumberId, {
         assignedAgentId: "",
-        assignedAgentName: "",
       });
     }
 
@@ -330,7 +328,7 @@ export default function EditAgentPage() {
                   className="w-full px-3.5 py-2.5 bg-white dark:bg-[#0F172A] border-2 border-[#3157D5] rounded-xl text-xs font-medium text-[#172033] dark:text-[#F8FAFC] flex items-center justify-between shadow-2xs cursor-pointer focus:outline-hidden"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{activeLlmOption?.fullName || "GPT-4o Mini (OpenAI)"}</span>
+                    <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{activeLlmOption?.fullName || "Qwen/Qwen2.5-7B-Instruct-AWQ"}</span>
                   </div>
                   <ChevronDown className={`w-4 h-4 text-[#64748B] transition-transform ${isLlmDropdownOpen ? "rotate-180" : ""}`} />
                 </button>
@@ -415,10 +413,10 @@ export default function EditAgentPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <label className="block text-xs font-bold text-[#172033] dark:text-white">
-                  Neural Voice Persona ({NEURAL_VOICE_PERSONAS.length} Models across 11 Languages)
+                  Kokoro-82M Neural Voice Persona ({NEURAL_VOICE_PERSONAS.length} Models • English US & UK)
                 </label>
                 <p className="text-[11px] text-[#78849A]">
-                  Choose from native multi-lingual Kokoro-82M neural personas with real-time prosody.
+                  Choose from native Kokoro-82M neural personas with real-time prosody.
                 </p>
               </div>
 
@@ -435,13 +433,13 @@ export default function EditAgentPage() {
                         : "text-[#64748B] hover:text-[#0F172A]"
                     }`}
                   >
-                    {g === "all" ? "All Genders" : g === "female" ? "👩 Female" : "👨 Male"}
+                    {g === "all" ? "All Genders" : g === "female" ? "Female" : "Male"}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Language Filter Pills */}
+            {/* Language Filter Pills — Only English (US) and English (UK) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               {SUPPORTED_LANGUAGES.map((lang) => {
                 const isSelected = selectedLanguageFilter === lang.value;
@@ -449,19 +447,22 @@ export default function EditAgentPage() {
                   <button
                     key={lang.value}
                     type="button"
-                    onClick={() => setSelectedLanguageFilter(lang.value)}
+                    onClick={() => setSelectedLanguageFilter(selectedLanguageFilter === lang.value ? "all" : lang.value)}
                     className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shrink-0 ${
                       isSelected
                         ? "bg-[#3157D5] text-white shadow-xs"
                         : "bg-white dark:bg-[#0F172A] text-[#64748B] hover:text-[#0F172A] hover:bg-[#EEF2FD] border border-[#E2E8F0] dark:border-[#1E293B]"
                     }`}
                   >
-                    <span>{lang.flag}</span>
+                    <span className="text-[10px] font-bold px-1 rounded bg-black/10 dark:bg-white/10">
+                      {lang.flag}
+                    </span>
                     <span>{lang.label}</span>
                   </button>
                 );
               })}
             </div>
+
 
             {/* Voice Search Bar */}
             <div className="relative">

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const {
       messages = [],
       systemPrompt = "You are a professional voice agent. Keep answers natural, accurate, and concise (1-2 sentences).",
-      model = "DeepSeek-V4-Pro",
+      model = "Qwen/Qwen2.5-7B-Instruct-AWQ",
       agentName = "Apex Inbound Assistant",
       tools = [],
       knowledgeBase = [],
@@ -15,85 +15,47 @@ export async function POST(req: NextRequest) {
 
     const lastUserMessage = messages[messages.length - 1]?.content || "";
 
-    const deepseekKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY || "sk-6afcb9c9ea194924b7037362f7aaa30f";
-    const openAiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "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";
+    const vllmBaseUrl = process.env.VLLM_BASE_URL || "http://184.144.154.180:56137/v1";
+    const vllmApiKey = process.env.VLLM_API_KEY || "sk-ibrasoft-gpu-voice";
 
     let replyText = "";
     let toolCall: { name: string; result: string } | undefined = undefined;
     let kbMatch: { title: string; score: number } | undefined = undefined;
-    let resolvedModelName = model || "DeepSeek-V4-Pro";
+    let resolvedModelName = "Qwen/Qwen2.5-7B-Instruct-AWQ";
 
-    // 1. Primary Engine: High-Speed DeepSeek-V3 LLM (Full Knowledge Base & Reasoning)
-    if (deepseekKey) {
-      try {
-        const formattedMessages = [
-          {
-            role: "system",
-            content: `${systemPrompt}\n\nYour name is "${agentName}". You are speaking live on a voice phone call. Answer accurately, intelligently, and keep answers to 1-2 spoken sentences (under 30 words). Never use markdown formatting like asterisks or hashtags.`,
-          },
-          ...messages.map((m: any) => ({
-            role: m.role === "agent" ? "assistant" : m.role,
-            content: m.content || m.text || "",
-          })),
-        ];
+    // 1. Primary Engine: Live vLLM Neural LLM Engine on GPU (184.144.154.180:56137)
+    try {
+      const formattedMessages = [
+        {
+          role: "system",
+          content: `${systemPrompt}\n\nYour name is "${agentName}". You are speaking live on a voice phone call. Answer accurately, intelligently, and keep answers to 1-2 spoken sentences (under 30 words). Never use markdown formatting like asterisks or hashtags.`,
+        },
+        ...messages.map((m: any) => ({
+          role: m.role === "agent" ? "assistant" : m.role,
+          content: m.content || m.text || "",
+        })),
+      ];
 
-        const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${deepseekKey}`,
-          },
-          body: JSON.stringify({
-            model: "deepseek-chat",
-            messages: formattedMessages,
-            max_tokens: 120,
-            temperature: 0.7,
-          }),
-        });
+      const res = await fetch(`${vllmBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${vllmApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "Qwen/Qwen2.5-7B-Instruct-AWQ",
+          messages: formattedMessages,
+          max_tokens: 120,
+          temperature: 0.7,
+        }),
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          replyText = data.choices?.[0]?.message?.content?.trim() || "";
-        }
-      } catch (err) {
-        console.warn("DeepSeek primary execution notice:", err);
+      if (res.ok) {
+        const data = await res.json();
+        replyText = data.choices?.[0]?.message?.content?.trim() || "";
       }
-    }
-
-    // 2. Secondary Engine: OpenAI GPT-4o-mini Fallback
-    if (!replyText && openAiKey) {
-      try {
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${openAiKey}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `${systemPrompt}\n\nYour name is "${agentName}". Keep answers under 30 words for voice.`,
-              },
-              ...messages.map((m: any) => ({
-                role: m.role === "agent" ? "assistant" : m.role,
-                content: m.content || m.text || "",
-              })),
-            ],
-            max_tokens: 120,
-            temperature: 0.7,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          replyText = data.choices?.[0]?.message?.content?.trim() || "";
-          resolvedModelName = "GPT-4o-mini (OpenAI)";
-        }
-      } catch (err) {
-        console.warn("OpenAI fallback execution notice:", err);
-      }
+    } catch (err) {
+      console.warn("vLLM GPU execution notice:", err);
     }
 
     // Check for intelligent Tool triggers

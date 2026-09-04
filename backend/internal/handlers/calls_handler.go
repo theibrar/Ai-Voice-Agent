@@ -48,6 +48,17 @@ func (h *CallsHandler) InitSchema(ctx context.Context) {
 		updated_at TIMESTAMPTZ DEFAULT NOW()
 	);`
 	_, _ = h.dbPool.Exec(ctx, createTable)
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS caller_name VARCHAR(255) DEFAULT 'Direct Caller';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS caller_number VARCHAR(100) DEFAULT '+1 (555) 000-0000';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS called_did VARCHAR(100) DEFAULT '+1 (415) 639-0491';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS agent_id VARCHAR(100);")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS agent_name VARCHAR(255) DEFAULT 'Rachel (Enterprise SDR)';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS recording_url VARCHAR(512) DEFAULT '';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS sentiment VARCHAR(50) DEFAULT 'positive';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS llm_model VARCHAR(255) DEFAULT 'Qwen/Qwen2.5-7B-Instruct-AWQ';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS tts_model VARCHAR(255) DEFAULT 'Kokoro-82M';")
+	_, _ = h.dbPool.Exec(ctx, "ALTER TABLE call_records ADD COLUMN IF NOT EXISTS stt_model VARCHAR(255) DEFAULT 'Faster-Whisper distil-large-v3';")
 }
 
 type FlexibleStartCallRequest struct {
@@ -88,19 +99,20 @@ func (h *CallsHandler) StartCall(c *gin.Context) {
 	tenantID := 1
 	agentName := "Rachel - AI Enterprise SDR"
 	systemPrompt := "You are a professional, friendly, and concise AI sales representative."
-	voice := "af_heart"
+	voice := "af_bella"
 	voiceSpeed := 1.0
+	llmModel := "Qwen/Qwen2.5-7B-Instruct-AWQ"
 	var kbIDs []string
 
 	// 1. If called_did is provided, look up assigned agent
 	if req.CalledDID != "" {
-		var aID, aName, sPrompt, vName string
+		var aID, aName, sPrompt, vName, lModel string
 		err := h.dbPool.QueryRow(ctx, `
-			SELECT a.id::text, a.name, COALESCE(a.system_prompt, ''), COALESCE(a.voice, 'af_heart')
+			SELECT a.id::text, a.name, COALESCE(a.system_prompt, ''), COALESCE(a.voice::text, 'af_bella'), COALESCE(a.llm_model, 'Qwen/Qwen2.5-7B-Instruct-AWQ')
 			FROM phone_numbers p
 			JOIN agents a ON p.assigned_agent_id = a.id::text
 			WHERE p.phone_number = $1 OR p.number = $1
-			LIMIT 1`, req.CalledDID).Scan(&aID, &aName, &sPrompt, &vName)
+			LIMIT 1`, req.CalledDID).Scan(&aID, &aName, &sPrompt, &vName, &lModel)
 		if err == nil && aName != "" {
 			agentName = aName
 			if sPrompt != "" {
@@ -108,13 +120,16 @@ func (h *CallsHandler) StartCall(c *gin.Context) {
 			}
 			if vName != "" {
 				voice = vName
+			}
+			if lModel != "" {
+				llmModel = lModel
 			}
 		}
 	} else if req.AgentID != "" {
-		var aName, sPrompt, vName string
+		var aName, sPrompt, vName, lModel string
 		err := h.dbPool.QueryRow(ctx, `
-			SELECT name, COALESCE(system_prompt, ''), COALESCE(voice, 'af_heart')
-			FROM agents WHERE id::text = $1 LIMIT 1`, req.AgentID).Scan(&aName, &sPrompt, &vName)
+			SELECT name, COALESCE(system_prompt, ''), COALESCE(voice::text, 'af_bella'), COALESCE(llm_model, 'Qwen/Qwen2.5-7B-Instruct-AWQ')
+			FROM agents WHERE id::text = $1 LIMIT 1`, req.AgentID).Scan(&aName, &sPrompt, &vName, &lModel)
 		if err == nil && aName != "" {
 			agentName = aName
 			if sPrompt != "" {
@@ -122,16 +137,19 @@ func (h *CallsHandler) StartCall(c *gin.Context) {
 			}
 			if vName != "" {
 				voice = vName
+			}
+			if lModel != "" {
+				llmModel = lModel
 			}
 		}
 	}
 
 	// 2. Insert initiated call record
 	insertCall := `
-		INSERT INTO call_records (call_id, tenant_id, caller_number, called_did, agent_name, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, 'in_progress', NOW(), NOW())
+		INSERT INTO call_records (call_id, tenant_id, caller_number, called_did, agent_name, status, llm_model, tts_model, stt_model, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'in_progress', $6, 'Kokoro-82M', 'Faster-Whisper distil-large-v3', NOW(), NOW())
 		ON CONFLICT (call_id) DO NOTHING`
-	_, _ = h.dbPool.Exec(ctx, insertCall, callID, tenantID, req.CustomerPhone, req.CalledDID, agentName)
+	_, _ = h.dbPool.Exec(ctx, insertCall, callID, tenantID, req.CustomerPhone, req.CalledDID, agentName, llmModel)
 
 	respData := gin.H{
 		"call_id":            callID,
@@ -142,6 +160,9 @@ func (h *CallsHandler) StartCall(c *gin.Context) {
 		"voice_speed":        voiceSpeed,
 		"knowledge_base_ids": kbIDs,
 		"status":             "in_progress",
+		"llm_model":          llmModel,
+		"tts_model":          "Kokoro-82M",
+		"stt_model":          "Faster-Whisper distil-large-v3",
 	}
 
 	// Broadcast call_started event to WebSocket subscribers

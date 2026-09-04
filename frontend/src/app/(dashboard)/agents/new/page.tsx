@@ -39,30 +39,17 @@ import { playKokoroNeuralAudio, stopNeuralAudio } from "@/lib/tts-service";
 export interface LLMModelOption {
   id: string;
   name: string;
-  provider: "OpenAI" | "Google" | "DeepSeek";
+  provider: string;
   fullName: string;
 }
 
 export const LLM_MODEL_OPTIONS: LLMModelOption[] = [
-  // Google Gemini (Current Generations)
-  { id: "gemini-3-1-pro", name: "Gemini 3.1 Pro", provider: "Google", fullName: "Gemini 3.1 Pro (Google)" },
-  { id: "gemini-3-pro", name: "Gemini 3 Pro", provider: "Google", fullName: "Gemini 3 Pro (Google)" },
-  { id: "gemini-3-7-flash", name: "Gemini 3.7 Flash", provider: "Google", fullName: "Gemini 3.7 Flash (Google)" },
-  { id: "gemini-2-5-flash-lite", name: "Gemini 2.5 Flash Lite", provider: "Google", fullName: "Gemini 2.5 Flash Lite (Google)" },
-  { id: "gemini-2-0-flash", name: "Gemini 2.0 Flash", provider: "Google", fullName: "Gemini 2.0 Flash (Google)" },
-
-  // DeepSeek (Current Generations)
-  { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro", provider: "DeepSeek", fullName: "DeepSeek-V4-Pro (DeepSeek)" },
-  { id: "deepseek-v4-flash-vision", name: "DeepSeek V4 Flash Vision", provider: "DeepSeek", fullName: "DeepSeek V4 Flash Vision (DeepSeek)" },
-  { id: "deepseek-r1", name: "DeepSeek-R1", provider: "DeepSeek", fullName: "DeepSeek-R1 (DeepSeek)" },
-  { id: "deepseek-v3", name: "DeepSeek V3", provider: "DeepSeek", fullName: "DeepSeek V3 (DeepSeek)" },
-
-  // OpenAI (Current Generations)
-  { id: "gpt-5-6-soul", name: "GPT-5.6 Soul", provider: "OpenAI", fullName: "GPT-5.6 Soul (OpenAI)" },
-  { id: "gpt-5-6", name: "GPT-5.6 Flagship", provider: "OpenAI", fullName: "GPT-5.6 (OpenAI)" },
-  { id: "o3-series", name: "o3 Series Full Reasoning", provider: "OpenAI", fullName: "o3 Series Full Reasoning (OpenAI)" },
-  { id: "o3-mini", name: "o3-mini", provider: "OpenAI", fullName: "o3-mini (OpenAI)" },
-  { id: "gpt-4o-mini", name: "GPT-4o Mini", provider: "OpenAI", fullName: "GPT-4o Mini (OpenAI)" },
+  {
+    id: "Qwen/Qwen2.5-7B-Instruct-AWQ",
+    name: "Qwen 2.5 7B Instruct AWQ",
+    provider: "vLLM Neural LLM Engine",
+    fullName: "Qwen/Qwen2.5-7B-Instruct-AWQ",
+  },
 ];
 
 export default function CreateAgentPage() {
@@ -153,7 +140,7 @@ export default function CreateAgentPage() {
   };
 
   // LLM State
-  const [selectedLlmId, setSelectedLlmId] = useState<string>(() => llmOptions[0]?.id || "gpt-4o-mini");
+  const [selectedLlmId, setSelectedLlmId] = useState<string>(() => llmOptions[0]?.id || "Qwen/Qwen2.5-7B-Instruct-AWQ");
   const [isLlmDropdownOpen, setIsLlmDropdownOpen] = useState(false);
   const [llmSearch, setLlmSearch] = useState("");
 
@@ -262,7 +249,6 @@ If the customer wants a meeting, use the book_appointment tool.`);
     if (selectedPhone) {
       assignPhoneNumber(selectedPhone.id, {
         assignedAgentId: newAgent.id,
-        assignedAgentName: newAgent.name,
       });
     }
     router.push(`/agents/${newAgent.id}/test`);
@@ -476,7 +462,7 @@ If the customer wants a meeting, use the book_appointment tool.`);
                     className="w-full px-3.5 py-2.5 bg-white dark:bg-[#0F172A] border-2 border-[#3157D5] rounded-xl text-xs font-medium text-[#172033] dark:text-[#F8FAFC] flex items-center justify-between shadow-2xs cursor-pointer focus:outline-hidden"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{activeLlmOption?.fullName || "GPT-4o Mini (OpenAI)"}</span>
+                      <span className="font-semibold text-[#0F172A] dark:text-[#F8FAFC]">{activeLlmOption?.fullName || "Qwen/Qwen2.5-7B-Instruct-AWQ"}</span>
                     </div>
                     <ChevronDown className={`w-4 h-4 text-[#64748B] transition-transform ${isLlmDropdownOpen ? "rotate-180" : ""}`} />
                   </button>
@@ -528,7 +514,7 @@ If the customer wants a meeting, use the book_appointment tool.`);
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <label className="block text-xs font-bold text-[#172033] dark:text-white">
-                      Neural Voice Persona ({NEURAL_VOICE_PERSONAS.length} Models across 11 Languages)
+                      Kokoro-82M Neural Voice Persona ({NEURAL_VOICE_PERSONAS.length} Models • English US & UK)
                     </label>
                     <p className="text-[11px] text-[#78849A]">
                       Select ultra-low latency Kokoro-82M neural voices with native accents and prosody.
@@ -548,13 +534,13 @@ If the customer wants a meeting, use the book_appointment tool.`);
                             : "text-[#64748B] hover:text-[#0F172A]"
                         }`}
                       >
-                        {g === "all" ? "All Genders" : g === "female" ? "👩 Female" : "👨 Male"}
+                        {g === "all" ? "All Genders" : g === "female" ? "Female" : "Male"}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Language Filter Pills */}
+                {/* Language Filter Pills — Only English (US) and English (UK) */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                   {SUPPORTED_LANGUAGES.map((lang) => {
                     const isSelected = selectedLanguageFilter === lang.value;
@@ -562,19 +548,23 @@ If the customer wants a meeting, use the book_appointment tool.`);
                       <button
                         key={lang.value}
                         type="button"
-                        onClick={() => setSelectedLanguageFilter(lang.value)}
+                        onClick={() => setSelectedLanguageFilter(selectedLanguageFilter === lang.value ? "all" : lang.value)}
                         className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer shrink-0 ${
                           isSelected
                             ? "bg-[#3157D5] text-white shadow-xs"
                             : "bg-white dark:bg-[#0F172A] text-[#64748B] hover:text-[#0F172A] hover:bg-[#EEF2FD] border border-[#E2E8F0] dark:border-[#1E293B]"
                         }`}
                       >
-                        <span>{lang.flag}</span>
+                        <span className="text-[10px] font-bold px-1 rounded bg-black/10 dark:bg-white/10">
+                          {lang.flag}
+                        </span>
                         <span>{lang.label}</span>
                       </button>
                     );
                   })}
                 </div>
+
+
 
                 {/* Voice Search Bar */}
                 <div className="relative">
@@ -878,39 +868,27 @@ If the customer wants a meeting, use the book_appointment tool.`);
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[#172033] mb-1.5">Response Tone Style</label>
-                  <select
-                    value={responseStyle}
-                    onChange={(e) => setResponseStyle(e.target.value as any)}
-                    className="w-full px-3.5 py-2.5 bg-[#F4F7FB] border border-[#E5EAF2] rounded-xl text-xs font-medium text-[#172033] outline-none focus:border-[#3157D5]"
-                  >
-                    <option value="conversational">Conversational (Natural flow)</option>
-                    <option value="concise">Concise (Direct, sub-20 words)</option>
-                    <option value="empathetic">Empathetic (Warm, healthcare/support)</option>
-                    <option value="professional">Professional (Executive B2B)</option>
-                  </select>
+              <div className="p-4 bg-[#F4F7FB] rounded-xl border border-[#E5EAF2]">
+                <div className="flex justify-between text-xs mb-1.5">
+                  <span className="font-semibold text-[#172033]">Interruption Sensitivity</span>
+                  <span className="font-mono font-bold text-[#3157D5]">{interruptionSensitivity}</span>
                 </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="font-semibold text-[#172033]">Interruption Sensitivity</span>
-                    <span className="font-mono text-[#3157D5]">{interruptionSensitivity}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.2"
-                    max="1.0"
-                    step="0.05"
-                    value={interruptionSensitivity}
-                    onChange={(e) => setInterruptionSensitivity(parseFloat(e.target.value))}
-                    className="w-full accent-[#3157D5] mt-2"
-                  />
-                </div>
+                <input
+                  type="range"
+                  min="0.2"
+                  max="1.0"
+                  step="0.05"
+                  value={interruptionSensitivity}
+                  onChange={(e) => setInterruptionSensitivity(parseFloat(e.target.value))}
+                  className="w-full accent-[#3157D5] cursor-pointer"
+                />
+                <p className="text-[11px] text-[#78849A] mt-1">
+                  Adjust how quickly the agent yields speaking turns when the caller interrupts.
+                </p>
               </div>
             </div>
           )}
+
 
           {/* STEP 4: KNOWLEDGE BASE */}
           {step === 4 && (
@@ -1057,9 +1035,10 @@ If the customer wants a meeting, use the book_appointment tool.`);
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div><span className="text-[#78849A]">Language:</span> <strong className="text-[#172033]">{language}</strong></div>
-                  <div><span className="text-[#78849A]">Response Style:</span> <strong className="text-[#172033] capitalize">{responseStyle}</strong></div>
+                  <div><span className="text-[#78849A]">Interruption:</span> <strong className="text-[#172033] font-mono">{interruptionSensitivity}</strong></div>
                   <div><span className="text-[#78849A]">Attached KB:</span> <strong className="text-[#172033]">{selectedKbIds.length} sources</strong></div>
                   <div><span className="text-[#78849A]">Active Tools:</span> <strong className="text-[#172033]">{tools.filter((t) => t.enabled).length} enabled</strong></div>
+
                   <div className="col-span-2 pt-1 border-t border-[#E5EAF2]">
                     <span className="text-[#78849A]">Assigned DID:</span>{" "}
                     <strong className="text-[#3157D5]">
@@ -1147,9 +1126,20 @@ If the customer wants a meeting, use the book_appointment tool.`);
                 </div>
               </div>
 
-              <div className="p-3 bg-white rounded-xl border border-[#E5EAF2] text-xs text-[#172033] italic leading-relaxed">
-                &quot;{greeting}&quot;
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-[#64748B]">
+                  <span className="font-semibold">Speech Text (Editable)</span>
+                  <span className="text-[10px] text-[#94A3B8]">Type to audition</span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={greeting}
+                  onChange={(e) => setGreeting(e.target.value)}
+                  placeholder="Enter greeting or speech script to audition..."
+                  className="w-full p-2.5 bg-white rounded-xl border border-[#E5EAF2] text-xs text-[#172033] font-medium outline-none focus:border-[#3157D5] focus:ring-1 focus:ring-[#3157D5] leading-relaxed resize-none transition-all"
+                />
               </div>
+
 
               {/* Waveform Graph - Only animates when agent is speaking */}
               <AudioWaveform
