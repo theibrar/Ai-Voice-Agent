@@ -15,11 +15,12 @@ rtc:
   enable_loopback_candidate: false
   force_relay: false
 
-redis:
-  address: 127.0.0.1:6379   # Redis runs on host network
-  username: ""
-  password: ""
-  db: 0
+# Optional Redis section (uncomment for multi-node LiveKit clusters)
+# redis:
+#   address: 127.0.0.1:6379
+#   username: ""
+#   password: ""
+#   db: 0
 
 # Production API key — must match docker-compose.contabo.yml and agent_worker.py
 keys:

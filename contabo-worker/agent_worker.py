@@ -787,9 +787,41 @@ async def entrypoint(ctx: JobContext):
 # ─────────────────────────────────────────────────────────────────────────────
 # STARTUP
 # ─────────────────────────────────────────────────────────────────────────────
+def resolve_livekit_url(url: str) -> str:
+    import socket
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(url)
+        port = parsed.port or 7880
+        host = parsed.hostname or "127.0.0.1"
+        candidates = [host]
+        if host in ("127.0.0.1", "localhost"):
+            candidates.extend(["livekit-server", "livekit"])
+
+        for cand in candidates:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(1.5)
+                res = s.connect_ex((cand, port))
+                s.close()
+                if res == 0:
+                    scheme = parsed.scheme or "ws"
+                    resolved = f"{scheme}://{cand}:{port}"
+                    logger.info(f"LiveKit SFU verified at: {resolved}")
+                    return resolved
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return url
+
+
 def main():
+    target_livekit_url = resolve_livekit_url(LIVEKIT_URL)
+
     logger.info("=========================================================")
     logger.info("  Apex Voice AI  -  LiveKit Agent Worker")
+    logger.info(f"  LiveKit: {target_livekit_url}")
     logger.info(f"  GPU    : {GPU_HOST}")
     logger.info(f"  STT    : {STT_URL}")
     logger.info(f"  LLM    : {LLM_URL}")
@@ -803,7 +835,7 @@ def main():
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
-            ws_url=LIVEKIT_URL,
+            ws_url=target_livekit_url,
             api_key=LIVEKIT_API_KEY,
             api_secret=LIVEKIT_API_SECRET,
             worker_type="room",
