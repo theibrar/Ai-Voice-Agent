@@ -580,3 +580,72 @@ func (h *AuthHandler) ListUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
+// GET /api/v1/auth/me
+func (h *AuthHandler) GetMe(c *gin.Context) {
+	tokenStr, _ := c.Cookie("access_token")
+	if tokenStr == "" {
+		tokenStr, _ = c.Cookie("preview_token")
+	}
+	if tokenStr == "" {
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+
+	if tokenStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required", "isAuthenticated": false})
+		return
+	}
+
+	claims, err := h.authService.ValidateToken(tokenStr)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired session", "isAuthenticated": false})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	defer cancel()
+
+	var u UserResponse
+	err = h.db.QueryRow(ctx, `
+		SELECT id, name, email, role, COALESCE(tenant_id, 1), avatar, phone, company, status, last_login
+		FROM users
+		WHERE id = $1
+	`, claims.UserID).Scan(
+		&u.ID, &u.Name, &u.Email, &u.Role, &u.TenantID, &u.Avatar, &u.Phone, &u.Company, &u.Status, &u.LastLogin,
+	)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User account not found", "isAuthenticated": false})
+		return
+	}
+
+	resolvedTenantID := claims.TenantID
+	var tenant TenantResponse
+	if resolvedTenantID > 0 {
+		_ = h.db.QueryRow(ctx, `
+			SELECT id, tenant_name, COALESCE(admin_name, 'Admin'), COALESCE(admin_email, ''),
+			       status, COALESCE(credits_balance, 250.00), COALESCE(plan_id, 'plan-growth'),
+			       COALESCE(plan_name, 'Growth Fleet'), COALESCE(billing_cycle, 'monthly'),
+			       COALESCE(credit_rate_per_minute, 0.08), COALESCE(max_concurrency, 40), COALESCE(mrr, 599.00)
+			FROM tenants
+			WHERE id = $1
+		`, resolvedTenantID).Scan(
+			&tenant.ID, &tenant.TenantName, &tenant.AdminName, &tenant.AdminEmail,
+			&tenant.Status, &tenant.CreditsBalance, &tenant.PlanID,
+			&tenant.PlanName, &tenant.BillingCycle, &tenant.CreditRatePerMinute,
+			&tenant.MaxConcurrency, &tenant.MRR,
+		)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"isAuthenticated": true,
+		"role":            u.Role,
+		"tenantId":        resolvedTenantID,
+		"isPreview":       claims.IsPreview,
+		"superAdminId":    claims.SuperAdminID,
+		"user":            u,
+		"tenant":          tenant,
+	})
+}
+

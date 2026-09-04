@@ -34,13 +34,16 @@
            │ Transcribe Audio              │ Stream LLM Tokens         │ Synthesize Audio
            ▼                               ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ VAST.AI GPU SERVER (173.185.79.174 - Real-Time Dedicated Compute)          │
+│ DEDICATED GPU AI SERVER (184.144.154.180 - Real-Time Compute)                │
 │                                                                             │
 │  ┌─────────────────────────┐ ┌───────────────────────┐ ┌─────────────────┐  │
-│  │   Parakeet STT Engine   │ │     vLLM Engine       │ │   Kokoro TTS    │  │
-│  │ (Port 8030 -> :46819)   │ │ (Port 8000 -> :46409) │ │ (8088 -> :47830)│  │
+│  │  Faster-Whisper STT     │ │     vLLM LLM Engine   │ │   Kokoro TTS    │  │
+│  │   (Port :56546)         │ │   (Port :56137/v1)    │ │   (Port :56209) │  │
 │  │  Sub-80ms Transcription │ │  Sub-200ms AWQ Prefill│ │  Sub-50ms Chunks│  │
 │  └─────────────────────────┘ └───────────────────────┘ └─────────────────┘  │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  Silero VAD Barge-In (Port :56756) — Sub-5ms Interruption Monitor     │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAppStore } from "@/lib/store";
 import { PageHeader } from "@/components/page-header";
@@ -26,7 +26,12 @@ import {
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
 
 export default function AgentsPage() {
-  const { agents, toggleAgentStatus, duplicateAgent, deleteAgent } = useAppStore();
+  const { agents, toggleAgentStatus, duplicateAgent, deleteAgent, refreshAgents } = useAppStore();
+
+  useEffect(() => {
+    refreshAgents();
+  }, [refreshAgents]);
+
 
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");

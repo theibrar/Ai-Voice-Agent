@@ -108,9 +108,9 @@ function SuperAdminTenantsContent() {
       assignedSipCarrier: assignedCarrier,
       assignedEmailGateway: "Amazon SES Primary",
       assignedSmsGateway: "Twilio 10DLC Pool",
-      allowedLLMs: ["gpt-4o", "claude-3-5-sonnet", "deepseek-v3"],
-      allowedTTS: ["cartesia-sonic", "kokoro-82m"],
-      allowedSTT: ["deepgram-nova-3"],
+      allowedLLMs: ["Qwen/Qwen2.5-7B-Instruct-AWQ"],
+      allowedTTS: ["kokoro-82m"],
+      allowedSTT: ["distil-large-v3"],
       status: "active",
     });
 

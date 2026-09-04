@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 export interface AuthUser {
   id: string;
@@ -48,9 +48,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Defined OUTSIDE the component so it is never recreated between renders
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [tenant, setTenant] = useState<AuthTenant | null>(null);
@@ -61,11 +63,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+  // Stable ref to prevent double-run in StrictMode / repeated renders
+  const authCheckedRef = useRef(false);
 
+  // No dependencies — stable function reference forever
   const refreshAuth = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/auth/me`, {
+      const res = await fetch(`${API_BASE}/auth/me`, {
         method: "GET",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -73,9 +77,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
-        setTenant(data.tenant);
-        setRole(data.role);
+        setUser(data.user || null);
+        setTenant(data.tenant && data.tenant.id ? data.tenant : null);
+        setRole(data.role || (data.user?.role ?? null));
         setTenantId(data.tenantId || (data.tenant ? data.tenant.id : 0));
         setIsPreview(!!data.isPreview);
         setSuperAdminId(data.superAdminId || null);
@@ -98,15 +102,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [apiUrl]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Run ONCE on mount only
   useEffect(() => {
-    refreshAuth();
-  }, [refreshAuth]);
+    if (!authCheckedRef.current) {
+      authCheckedRef.current = true;
+      refreshAuth();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const login = async (email: string, pass: string, requiredRole?: string) => {
     try {
-      const res = await fetch(`${apiUrl}/auth/login`, {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -125,6 +134,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
       }
 
+      if (data.token && typeof document !== "undefined") {
+        document.cookie = `access_token=${data.token}; path=/; max-age=604800; SameSite=Lax`;
+      }
+
       await refreshAuth();
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("app:auth_updated", { detail: data }));
@@ -138,7 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch(`${apiUrl}/auth/logout`, {
+      await fetch(`${API_BASE}/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
@@ -152,13 +165,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsPreview(false);
       setSuperAdminId(null);
       setIsAuthenticated(false);
+      if (typeof document !== "undefined") {
+        document.cookie = "access_token=; path=/; max-age=0;";
+        document.cookie = "preview_token=; path=/; max-age=0;";
+      }
       router.push("/login");
     }
   };
 
   const startPreview = async (targetTenantId: number) => {
     try {
-      const res = await fetch(`${apiUrl}/superadmin/preview/start`, {
+      const res = await fetch(`${API_BASE}/superadmin/preview/start`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -180,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const exitPreview = async () => {
     try {
-      await fetch(`${apiUrl}/superadmin/preview/exit`, {
+      await fetch(`${API_BASE}/superadmin/preview/exit`, {
         method: "POST",
         credentials: "include",
       });

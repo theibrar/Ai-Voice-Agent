@@ -95,6 +95,7 @@ func main() {
 		// 1. Public / Unauthenticated Endpoints
 		// ==========================================
 		api.POST("/auth/login", authHandler.Login)
+		api.GET("/auth/me", authHandler.GetMe)
 		api.POST("/auth/register", authHandler.Register)
 		api.POST("/auth/forgot-password", authHandler.ForgotPassword)
 		api.POST("/auth/reset-password", authHandler.ResetPassword)
@@ -105,10 +106,14 @@ func main() {
 		api.POST("/forms/:id/submit", formsHandler.SubmitFormWebhook)
 		api.POST("/webhooks/forms/:id", formsHandler.SubmitFormWebhook)
 
-		// Telephony Engine Webhooks & Calls
+		// Telephony Engine Webhooks & Calls (AI Worker & LiveKit Gateway)
 		api.POST("/calls/start", callsHandler.StartCall)
 		api.POST("/calls/end", callsHandler.EndCall)
 		api.POST("/rag/search", ragHandler.Search)
+		api.POST("/rag/query", ragHandler.Search)
+		api.POST("/appointments", appointmentsHandler.CreateAppointment)
+		api.POST("/contacts", contactsHandler.CreateOrUpdateContact)
+		api.GET("/knowledge", knowledgeHandler.ListKnowledgeSources)
 
 		// Real-Time WebSocket Endpoint
 		api.GET("/ws/calls", func(c *gin.Context) {
@@ -122,7 +127,6 @@ func main() {
 		authGroup.Use(middleware.AuthRequired(authService))
 		{
 			authGroup.POST("/auth/logout", authHandler.Logout)
-			authGroup.GET("/auth/me", authHandler.Me)
 			authGroup.GET("/auth/users", authHandler.ListUsers)
 		}
 
@@ -145,13 +149,11 @@ func main() {
 
 			// Unified CRM Contacts & Leads
 			tenantGroup.GET("/contacts", contactsHandler.GetContacts)
-			tenantGroup.POST("/contacts", contactsHandler.CreateOrUpdateContact)
 			tenantGroup.PUT("/contacts/:id/notes", contactsHandler.UpdateNotes)
 			tenantGroup.DELETE("/contacts/:id", contactsHandler.DeleteContact)
 			tenantGroup.POST("/leads/update", leadsHandler.UpdateStatus)
 
 			// Knowledge Base & Grounding RAG
-			tenantGroup.GET("/knowledge", knowledgeHandler.ListKnowledgeSources)
 			tenantGroup.GET("/knowledge/:id", knowledgeHandler.GetKnowledgeSource)
 			tenantGroup.POST("/knowledge", knowledgeHandler.CreateKnowledgeSource)
 			tenantGroup.PUT("/knowledge/:id", knowledgeHandler.UpdateKnowledgeSource)
@@ -168,7 +170,6 @@ func main() {
 
 			// Appointments & Calendar Bookings
 			tenantGroup.GET("/appointments", appointmentsHandler.GetAppointments)
-			tenantGroup.POST("/appointments", appointmentsHandler.CreateAppointment)
 			tenantGroup.PATCH("/appointments/:id/status", appointmentsHandler.UpdateAppointmentStatus)
 			tenantGroup.DELETE("/appointments/:id", appointmentsHandler.DeleteAppointment)
 
@@ -239,6 +240,9 @@ func main() {
 			// Real-Time System Announcements Broadcast to Tenant Admins
 			tenantGroup.GET("/announcements", superAdminHandler.GetTenantAnnouncements)
 		}
+
+		// Public/read-only access to active database AI engines
+		api.GET("/ai-engines", superAdminHandler.GetAIEngines)
 
 		// ==========================================
 		// 4. Super Admin Global Management (RBAC: super_admin only)

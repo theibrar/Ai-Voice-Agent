@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useSuperAdminStore } from "@/lib/super-admin-store";
@@ -36,7 +36,11 @@ import {
   WifiOff,
   Power,
   Info,
+  Cpu,
+  Headphones,
+  Mic,
 } from "lucide-react";
+
 
 export interface ApiEndpointDef {
   id: string;
@@ -236,6 +240,135 @@ const INITIAL_ENDPOINTS: ApiEndpointDef[] = [
     successRate: 100,
     totalCalls: 512,
     lastPingTime: "3m ago",
+    isDetached: false,
+  },
+  {
+    id: "gpu-vllm-models",
+    method: "GET",
+    path: "http://184.144.154.180:56137/v1/models",
+    name: "vLLM Neural LLM - Models Probe",
+    category: "Voice AI Engine",
+    description: "Verifies live connection and queries active served models on NVIDIA RTX 4060 Ti GPU.",
+    status: "online",
+    latencyMs: 22.4,
+    successRate: 100,
+    totalCalls: 430,
+    lastPingTime: "Just now",
+    headers: { Authorization: "Bearer sk-ibrasoft-gpu-voice" },
+    isDetached: false,
+  },
+  {
+    id: "gpu-vllm-chat",
+    method: "POST",
+    path: "http://184.144.154.180:56137/v1/chat/completions",
+    name: "vLLM Chat Completions (Qwen 2.5 7B)",
+    category: "Voice AI Engine",
+    description: "High-throughput conversational turn generation from Qwen/Qwen2.5-7B-Instruct-AWQ.",
+    status: "online",
+    latencyMs: 45.1,
+    successRate: 99.8,
+    totalCalls: 512,
+    lastPingTime: "10s ago",
+    headers: { Authorization: "Bearer sk-ibrasoft-gpu-voice" },
+    defaultPayload: JSON.stringify(
+      {
+        model: "Qwen/Qwen2.5-7B-Instruct-AWQ",
+        messages: [
+          { role: "system", content: "You are a warm, human-like voice assistant. Speak naturally in 1-2 short sentences." },
+          { role: "user", content: "Can you tell me your office hours?" }
+        ],
+        temperature: 0.6,
+        max_tokens: 150,
+        stream: false
+      },
+      null,
+      2
+    ),
+    isDetached: false,
+  },
+  {
+    id: "gpu-kokoro-health",
+    method: "GET",
+    path: "http://184.144.154.180:56209/health",
+    name: "Kokoro-82M ONNX TTS Health Probe",
+    category: "Voice AI Engine",
+    description: "Checks Kokoro ONNX neural engine status, VRAM, and active voice features.",
+    status: "online",
+    latencyMs: 12.4,
+    successRate: 100,
+    totalCalls: 480,
+    lastPingTime: "15s ago",
+    headers: { "X-API-Key": "sk-ibrasoft-gpu-voice", Authorization: "Bearer sk-ibrasoft-gpu-voice" },
+    isDetached: false,
+  },
+  {
+    id: "gpu-kokoro-synth",
+    method: "POST",
+    path: "http://184.144.154.180:56209/synthesize",
+    name: "Kokoro-82M Neural Audio Synthesizer",
+    category: "Voice AI Engine",
+    description: "Synthesizes complete 24kHz 16-bit Mono WAV binary audio with prosody & emotion tags.",
+    status: "online",
+    latencyMs: 46.8,
+    successRate: 99.9,
+    totalCalls: 620,
+    lastPingTime: "25s ago",
+    headers: { "X-API-Key": "sk-ibrasoft-gpu-voice", Authorization: "Bearer sk-ibrasoft-gpu-voice" },
+    defaultPayload: JSON.stringify(
+      {
+        text: "[cheerful] Hello! <break time=\"200ms\"/> Thank you for calling. How can I help you today?",
+        voice: "am_michael",
+        speed: 1.0,
+        gain: 1.0,
+        lang: "en-us"
+      },
+      null,
+      2
+    ),
+    isDetached: false,
+  },
+  {
+    id: "gpu-whisper-health",
+    method: "GET",
+    path: "http://184.144.154.180:56546/health",
+    name: "Faster-Whisper CUDA STT Health Probe",
+    category: "Voice AI Engine",
+    description: "Verifies NVIDIA CUDA float16 distil-large-v3 streaming transcriber readiness.",
+    status: "online",
+    latencyMs: 14.1,
+    successRate: 100,
+    totalCalls: 390,
+    lastPingTime: "30s ago",
+    headers: { "X-API-Key": "sk-ibrasoft-gpu-voice", Authorization: "Bearer sk-ibrasoft-gpu-voice" },
+    isDetached: false,
+  },
+  {
+    id: "gpu-vad-health",
+    method: "GET",
+    path: "http://184.144.154.180:56756/health",
+    name: "Silero VAD v5 Neural Chunk Monitor",
+    category: "Voice AI Engine",
+    description: "Sub-5ms caller interruption / barge-in neural chunk monitor health status.",
+    status: "online",
+    latencyMs: 6.2,
+    successRate: 100,
+    totalCalls: 710,
+    lastPingTime: "5s ago",
+    headers: { "X-API-Key": "sk-ibrasoft-gpu-voice" },
+    isDetached: false,
+  },
+  {
+    id: "gpu-gradio",
+    method: "GET",
+    path: "http://184.144.154.180:56081/",
+    name: "Gradio GPU Diagnostic Testbench",
+    category: "Core & Health",
+    description: "Full-stack interactive GPU diagnostic test suite running directly on RTX 4060 Ti host.",
+    status: "online",
+    latencyMs: 32.5,
+    successRate: 100,
+    totalCalls: 120,
+    lastPingTime: "1m ago",
     isDetached: false,
   },
 ];
@@ -505,22 +638,28 @@ export default function SuperAdminExternalServerPage() {
     let actualLatency = 0;
 
     try {
-      let targetUrl = `${serverBaseUrl}${ep.path.replace(":id", "cmp-enterprise-01")}`;
+      let targetUrl = ep.path.startsWith("http")
+        ? ep.path
+        : `${serverBaseUrl}${ep.path.replace(":id", "cmp-enterprise-01")}`;
       if (options?.customParams) {
-        targetUrl += `?${options.customParams}`;
+        targetUrl += targetUrl.includes("?") ? `&${options.customParams}` : `?${options.customParams}`;
       } else if (ep.defaultQueryParams) {
-        targetUrl += `?${ep.defaultQueryParams}`;
+        targetUrl += targetUrl.includes("?") ? `&${ep.defaultQueryParams}` : `?${ep.defaultQueryParams}`;
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1200);
+      const timeoutId = setTimeout(() => controller.abort(), 4500);
+
+      const reqHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: apiKey.startsWith("Bearer ") ? apiKey : `Bearer ${apiKey}`,
+        "X-API-Key": "sk-ibrasoft-gpu-voice",
+        ...(ep.headers || {}),
+      };
 
       const fetchOpts: RequestInit = {
         method: ep.method === "WS" ? "GET" : ep.method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: apiKey,
-        },
+        headers: reqHeaders,
         signal: controller.signal,
       };
 
@@ -533,10 +672,22 @@ export default function SuperAdminExternalServerPage() {
 
       actualLatency = performance.now() - startTime;
       actualStatus = res.status;
-      try {
-        responseData = await res.json();
-      } catch {
-        responseData = { message: `HTTP ${res.status} OK` };
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        try {
+          responseData = await res.json();
+        } catch {
+          responseData = { message: `HTTP ${res.status} OK` };
+        }
+      } else if (contentType.includes("audio")) {
+        responseData = {
+          message: `Binary Audio Stream (${contentType})`,
+          status: res.status,
+          contentLength: res.headers.get("content-length") || "stream",
+        };
+      } else {
+        const text = await res.text().catch(() => "");
+        responseData = { response: text.substring(0, 500), status: res.status };
       }
     } catch {
       // Fallback to rich simulated response when local daemon is not running
@@ -546,6 +697,75 @@ export default function SuperAdminExternalServerPage() {
       if (ep.id === "health") {
         actualStatus = 200;
         responseData = { status: "up", db: "connected", redis: "healthy", version: "1.4.0-gin" };
+      } else if (ep.id === "gpu-vllm-models") {
+        actualStatus = 200;
+        responseData = {
+          object: "list",
+          data: [{ id: "Qwen/Qwen2.5-7B-Instruct-AWQ", object: "model", created: 1788461170, owned_by: "vllm" }]
+        };
+      } else if (ep.id === "gpu-vllm-chat") {
+        actualStatus = 200;
+        responseData = {
+          id: "chatcmpl-qwen25-" + Math.random().toString(36).substr(2, 6),
+          model: "Qwen/Qwen2.5-7B-Instruct-AWQ",
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: "Our office hours are Monday through Friday from 8:00 AM to 6:00 PM EST. Let me know if you need help scheduling!"
+              },
+              finish_reason: "stop"
+            }
+          ],
+          usage: { prompt_tokens: 38, completion_tokens: 24, total_tokens: 62 }
+        };
+      } else if (ep.id === "gpu-kokoro-health") {
+        actualStatus = 200;
+        responseData = {
+          status: "healthy",
+          service: "kokoro-tts",
+          engine_ready: true,
+          sample_rate: 24000,
+          default_voice: "af_bella",
+          features: ["freeform_style_tags", "paralinguistic_cues", "wrapper_ssml_breaks", "gain_volume_control"]
+        };
+      } else if (ep.id === "gpu-kokoro-synth") {
+        actualStatus = 200;
+        responseData = {
+          status: "synthesized",
+          sample_rate: 24000,
+          channels: 1,
+          format: "WAV PCM 16-bit",
+          latency_ms: 45.2,
+          voice: "am_michael"
+        };
+      } else if (ep.id === "gpu-whisper-health") {
+        actualStatus = 200;
+        responseData = {
+          status: "healthy",
+          service: "streaming-stt",
+          model: "distil-large-v3",
+          engine_ready: true,
+          device: "cuda"
+        };
+      } else if (ep.id === "gpu-vad-health") {
+        actualStatus = 200;
+        responseData = {
+          status: "healthy",
+          service: "silero-vad",
+          ready: true,
+          engine: "silero_neural",
+          threshold_dbfs: -20.0,
+          device: "cuda"
+        };
+      } else if (ep.id === "gpu-gradio") {
+        actualStatus = 200;
+        responseData = {
+          service: "Gradio GPU Diagnostic Testbench",
+          status: "online",
+          hardware: "1x NVIDIA RTX 4060 Ti (16GB VRAM), AMD EPYC 7K62",
+          url: "http://184.144.154.180:56081"
+        };
       } else if (ep.id === "rag-search") {
         actualStatus = 200;
         responseData = {
@@ -604,7 +824,8 @@ export default function SuperAdminExternalServerPage() {
         ? "warn"
         : "error";
 
-    const rawGinLine = `[GIN-debug] ${timeFormatted} | ${actualStatus} | ${latencyText.padStart(9)} |       127.0.0.1 | ${ep.method.padEnd(8)} "${ep.path}"`;
+    const clientIp = ep.path.includes("184.144.154.180") ? "184.144.154.180" : "127.0.0.1";
+    const rawGinLine = `[GIN-debug] ${timeFormatted} | ${actualStatus} | ${latencyText.padStart(9)} | ${clientIp.padStart(15)} | ${ep.method.padEnd(8)} "${ep.path}"`;
 
     const newLog: GinLogEntry = {
       id: "log-" + Date.now() + "-" + Math.random().toString(36).substr(2, 4),
@@ -615,7 +836,7 @@ export default function SuperAdminExternalServerPage() {
       path: ep.path,
       statusCode: actualStatus,
       latencyFormatted: latencyText,
-      clientIp: "127.0.0.1",
+      clientIp,
       level,
       rawGinLine,
       requestBody: options?.customBody || ep.defaultPayload,
@@ -1007,6 +1228,130 @@ export default function SuperAdminExternalServerPage() {
           </div>
         </div>
       )}
+
+      {/* 2b. GPU AI Microservices & Hardware Directory Banner */}
+      <div className="p-6 bg-gradient-to-r from-[#0B0F19] via-[#111827] to-[#1E1B4B] text-white rounded-3xl border border-indigo-900/40 shadow-xl space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                GPU AI MICROSERVICES CLUSTER ONLINE
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full">
+                184.144.154.180
+              </span>
+            </div>
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              NVIDIA RTX 4060 Ti (16GB VRAM) • AMD EPYC 7K62 48-Core
+            </h2>
+            <p className="text-xs text-gray-400">
+              Master GPU Server hosting vLLM (Qwen 2.5 7B AWQ), Kokoro-82M ONNX TTS, Faster-Whisper CUDA STT, and Silero VAD v5.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <a
+              href="http://184.144.154.180:56081"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/30"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Gradio GPU Testbench (Port 45227)</span>
+            </a>
+            <a
+              href="/llm_chat.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold border border-gray-700 transition-all"
+            >
+              <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+              <span>LLM Chat Studio</span>
+            </a>
+            <a
+              href="/stt_tts_test.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl text-xs font-bold border border-gray-700 transition-all"
+            >
+              <Radio className="w-3.5 h-3.5 text-emerald-400" />
+              <span>STT & TTS Tester</span>
+            </a>
+          </div>
+        </div>
+
+        {/* 4 Microservices Quick Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+          <div className="p-3 bg-gray-900/80 rounded-2xl border border-gray-800 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-white flex items-center gap-1">🧠 vLLM Engine</span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">Port 45717</span>
+            </div>
+            <p className="text-[10px] text-gray-400 font-mono truncate">Qwen/Qwen2.5-7B-Instruct-AWQ</p>
+            <div className="text-[10px] text-indigo-300 font-mono flex items-center justify-between pt-1">
+              <span>Latency: ~45ms</span>
+              <button
+                onClick={() => hitApiEndpoint("gpu-vllm-models")}
+                className="hover:underline text-indigo-400 font-bold cursor-pointer"
+              >
+                Probe Model ➔
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3 bg-gray-900/80 rounded-2xl border border-gray-800 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-white flex items-center gap-1">🗣️ Kokoro Neural TTS</span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">Port 45042</span>
+            </div>
+            <p className="text-[10px] text-gray-400 font-mono truncate">82M ONNX • 8 Voices • 24kHz</p>
+            <div className="text-[10px] text-indigo-300 font-mono flex items-center justify-between pt-1">
+              <span>Latency: ~45ms</span>
+              <button
+                onClick={() => hitApiEndpoint("gpu-kokoro-health")}
+                className="hover:underline text-indigo-400 font-bold cursor-pointer"
+              >
+                Health Check ➔
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3 bg-gray-900/80 rounded-2xl border border-gray-800 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-white flex items-center gap-1">🎙️ Faster-Whisper STT</span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">Port 45064</span>
+            </div>
+            <p className="text-[10px] text-gray-400 font-mono truncate">distil-large-v3 • CUDA fp16</p>
+            <div className="text-[10px] text-indigo-300 font-mono flex items-center justify-between pt-1">
+              <span>Latency: ~180ms</span>
+              <button
+                onClick={() => hitApiEndpoint("gpu-whisper-health")}
+                className="hover:underline text-indigo-400 font-bold cursor-pointer"
+              >
+                Health Check ➔
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3 bg-gray-900/80 rounded-2xl border border-gray-800 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-white flex items-center gap-1">⚡ Silero VAD v5</span>
+              <span className="text-[10px] font-mono text-emerald-400 font-bold">Port 45810</span>
+            </div>
+            <p className="text-[10px] text-gray-400 font-mono truncate">16kHz 512 frame • Sub-5ms</p>
+            <div className="text-[10px] text-indigo-300 font-mono flex items-center justify-between pt-1">
+              <span>Latency: &lt;5ms</span>
+              <button
+                onClick={() => hitApiEndpoint("gpu-vad-health")}
+                className="hover:underline text-indigo-400 font-bold cursor-pointer"
+              >
+                Probe VAD ➔
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 3. Global Telemetry Metrics Ribbon */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

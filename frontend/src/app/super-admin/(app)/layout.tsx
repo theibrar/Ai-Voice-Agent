@@ -17,7 +17,7 @@ export default function SuperAdminLayout({
   useEffect(() => {
     if (!isLoading) {
       if (!isAuthenticated || user?.role !== "super_admin") {
-        router.push("/super-admin/login");
+        router.replace("/super-admin/login");
       }
     }
   }, [isLoading, isAuthenticated, user, router]);

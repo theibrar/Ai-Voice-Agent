@@ -55,7 +55,8 @@ apt-get install -y --no-install-recommends \
     python3-pip \
     python3-dev \
     build-essential \
-    libespeak-ng-dev
+    libespeak-ng-dev \
+    libcublas-12-0 || true
 
 # 3. Configure Environment & API Key
 echo -e "${GREEN}[3/6] Setting Up Secure Environment...${NC}"
@@ -66,23 +67,37 @@ cat <<EOF > .env
 GPU_API_KEY=${DEFAULT_KEY}
 PUBLIC_IP=${PUBLIC_IP}
 LLM_MODEL=Qwen/Qwen2.5-7B-Instruct-AWQ
-GPU_MEM_UTIL=0.65
+GPU_MEM_UTIL=0.50
+MAX_MODEL_LEN=2048
 STT_MODEL_SIZE=distil-large-v3
 PORT_VLLM=45717
 PORT_TTS=45042
 PORT_STT=45064
 PORT_VAD=45810
 PORT_UI=45227
+CUDA_MODULE_LOADING=LAZY
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+VLLM_USE_V1=0
+VLLM_USE_FLASHINFER_SAMPLER=0
+VLLM_WORKER_MULTIPROC_METHOD=spawn
 KOKORO_MODEL_PATH=/root/voice_worker/models/kokoro-v0_19.onnx
 KOKORO_VOICES_PATH=/root/voice_worker/models/voices.bin
 EOF
 
 echo -e "${GREEN}✓ Environment configured with secure API key.${NC}"
 
-# 4. Install Python AI Libraries
-echo -e "${GREEN}[4/6] Installing PyTorch, vLLM, Faster-Whisper, Kokoro, Silero, & Gradio...${NC}"
+# 4. Install Python AI Libraries & llama.cpp Server
+echo -e "${GREEN}[4/6] Installing PyTorch, vLLM, Faster-Whisper, Kokoro, Silero, Gradio, & llama.cpp...${NC}"
 python3 -m pip install --upgrade pip setuptools wheel
 python3 -m pip install -r requirements.txt
+python3 -m pip install llama-cpp-python[server] --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124 || true
+
+# Register NVIDIA python libs directly in /usr/local/lib and system linker (fixes libcublas.so.12)
+find /usr/local/lib/ -name "libcublas*.so*" -exec ln -sf {} /usr/local/lib/ \; 2>/dev/null || true
+find /usr/local/lib/ -name "libcudnn*.so*" -exec ln -sf {} /usr/local/lib/ \; 2>/dev/null || true
+find /usr/local/lib/ -name "libcudart*.so*" -exec ln -sf {} /usr/local/lib/ \; 2>/dev/null || true
+echo "/usr/local/lib" > /etc/ld.so.conf.d/00-local.conf
+ldconfig 2>/dev/null || true
 
 # 5. Download Neural Model Weights (Kokoro, Parakeet, Qwen)
 echo -e "${GREEN}[5/6] Downloading & Verifying Model Weights...${NC}"
@@ -94,8 +109,9 @@ if [ ! -f "models/kokoro-v0_19.onnx" ]; then
     wget -q --show-progress -c https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx -O models/kokoro-v0_19.onnx
 fi
 
-if [ ! -f "models/voices.bin" ]; then
-    echo "Downloading Kokoro 54-voice pack (28MB)..."
+# Download Kokoro matching voices.bin for v0_19
+if [ ! -f "models/voices.bin" ] || [ $(wc -c < "models/voices.bin" 2>/dev/null || echo 0) -lt 25000000 ]; then
+    echo "Downloading Kokoro matching voices.bin (28MB)..."
     wget -q --show-progress -c https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.bin -O models/voices.bin
 fi
 
@@ -165,8 +181,9 @@ EOF
 
 # 7. Launch All Services via tmux
 echo -e "${GREEN}[6/6] Launching All 5 GPU AI Engines in Background...${NC}"
+fuser -k 8000/tcp 8030/tcp 8088/tcp 8090/tcp 7860/tcp 2>/dev/null || true
 tmux kill-session -t voice-worker 2>/dev/null || true
-tmux new-session -d -s voice-worker "python3 master_orchestrator.py"
+tmux new-session -d -s voice-worker "export VLLM_USE_FLASHINFER_SAMPLER=0; export VLLM_USE_V1=0; python3 master_orchestrator.py"
 
 sleep 3
 

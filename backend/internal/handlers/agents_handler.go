@@ -34,7 +34,7 @@ func (h *AgentsHandler) ensureSchemaAndSeed() {
 		color VARCHAR(50) DEFAULT '#3157D5',
 		status VARCHAR(50) DEFAULT 'active',
 		voice JSONB DEFAULT '{}'::jsonb,
-		llm_model VARCHAR(255) DEFAULT 'GPT-4o Mini (OpenAI)',
+		llm_model VARCHAR(255) DEFAULT 'Qwen/Qwen2.5-7B-Instruct-AWQ',
 		language VARCHAR(100) DEFAULT 'English (US)',
 		greeting TEXT,
 		system_prompt TEXT,
@@ -65,8 +65,8 @@ func (h *AgentsHandler) ensureSchemaAndSeed() {
 		INSERT INTO agents (id, name, description, avatar, color, status, voice, llm_model, language, greeting, system_prompt, response_style, interruption_sensitivity, silence_timeout_seconds, max_call_duration_minutes, knowledge_base_ids, tools, transfer_rules, call_ending_rules, metrics, created_at, updated_at)
 		VALUES 
 		('agent-solar-1', 'Marcus (Solar Advisor)', 'Specialized in commercial & residential solar qualification, financing options, and calendar booking.', '/avatars/marcus.png', '#3157D5', 'active',
-		 '{"provider": "ElevenLabs", "voiceId": "v-marcus-turbo", "voiceName": "Marcus (Conversational Professional)", "gender": "male", "accent": "American (West Coast)", "speed": 1.0, "pitch": 1.0, "stability": 0.75, "similarity": 0.85}'::jsonb,
-		 'GPT-4o (OpenAI)', 'English (US)', 'Hello, this is Marcus with Apex Solar Solutions. How are you today?', 'You are Marcus, an empathetic and professional solar consultant. Your goal is to qualify homeowners and schedule consultation demos.',
+		 '{"provider": "Kokoro-82M", "voiceId": "am_adam", "voiceName": "Adam (US Male • Deep & Engaging)", "gender": "male", "accent": "American (US)", "speed": 1.0, "pitch": 1.0, "stability": 0.75, "similarity": 0.85}'::jsonb,
+		 'Qwen/Qwen2.5-7B-Instruct-AWQ', 'English (US)', 'Hello, this is Marcus with Apex Solar Solutions. How are you today?', 'You are Marcus, an empathetic and professional solar consultant. Your goal is to qualify homeowners and schedule consultation demos.',
 		 'conversational', 0.70, 4, 15, '["kb-solar-faq", "kb-pricing-2026"]'::jsonb,
 		 '[{"id": "tool-cal", "name": "Google Calendar Booking", "description": "Books meeting slots dynamically", "enabled": true, "type": "calendar"}, {"id": "tool-crm", "name": "HubSpot Deal Push", "description": "Pushes contact and qualification score", "enabled": true, "type": "crm"}]'::jsonb,
 		 '{"enabled": true, "destinationNumber": "+1 (800) 555-0199", "triggerPhrase": "transfer to human specialist", "department": "Senior Engineering"}'::jsonb,
@@ -74,8 +74,8 @@ func (h *AgentsHandler) ensureSchemaAndSeed() {
 		 '{"totalCalls": 0, "avgDurationSeconds": 0, "successRate": 0, "sentimentScore": 0, "connectedCalls": 0}'::jsonb,
 		 NOW(), NOW()),
 		('agent-sdr-2', 'Rachel (Enterprise SDR)', 'Inbound and outbound B2B pipeline development, discovery qualifications, and meeting confirmations.', '/avatars/rachel.png', '#6366F1', 'active',
-		 '{"provider": "Cartesia", "voiceId": "v-rachel-sonic", "voiceName": "Rachel (Executive & Clear)", "gender": "female", "accent": "American (Neutral)", "speed": 1.05, "pitch": 1.0, "stability": 0.8, "similarity": 0.9}'::jsonb,
-		 'Gemini 2.0 Flash (Google)', 'English (US)', 'Hi there, this is Rachel from Apex Enterprise. Reaching out regarding your AI telephony inquiry.', 'You are Rachel, a sharp and engaging enterprise sales representative.',
+		 '{"provider": "Kokoro-82M", "voiceId": "af_bella", "voiceName": "Bella (US Female • Warm & Professional)", "gender": "female", "accent": "American (US)", "speed": 1.0, "pitch": 1.0, "stability": 0.8, "similarity": 0.9}'::jsonb,
+		 'Qwen/Qwen2.5-7B-Instruct-AWQ', 'English (US)', 'Hi there, this is Rachel from Apex Enterprise. Reaching out regarding your AI telephony inquiry.', 'You are Rachel, a sharp and engaging enterprise sales representative.',
 		 'professional', 0.65, 3, 20, '["kb-enterprise-case-studies"]'::jsonb,
 		 '[{"id": "tool-email", "name": "Send Demo Dossier", "description": "Dispatches PDF overview to lead email", "enabled": true, "type": "sms"}]'::jsonb,
 		 '{"enabled": true, "destinationNumber": "+1 (800) 555-0188", "triggerPhrase": "speak with account executive", "department": "Enterprise Sales"}'::jsonb,
@@ -83,8 +83,8 @@ func (h *AgentsHandler) ensureSchemaAndSeed() {
 		 '{"totalCalls": 0, "avgDurationSeconds": 0, "successRate": 0, "sentimentScore": 0, "connectedCalls": 0}'::jsonb,
 		 NOW(), NOW()),
 		('agent-cs-3', 'Elena (Customer Care)', 'Tier-1 customer support, billing questions, appointments rescheduling, and FAQs.', '/avatars/elena.png', '#10B981', 'active',
-		 '{"provider": "ElevenLabs", "voiceId": "v-elena-empathy", "voiceName": "Elena (Warm & Empathetic)", "gender": "female", "accent": "British (Standard)", "speed": 0.95, "pitch": 1.0, "stability": 0.85, "similarity": 0.9}'::jsonb,
-		 'DeepSeek V3 (DeepSeek)', 'English (US)', 'Thank you for calling Customer Care. My name is Elena. How may I assist you today?', 'You are Elena, a calm, patient, and knowledgeable customer service representative.',
+		 '{"provider": "Kokoro-82M", "voiceId": "bf_emma", "voiceName": "Emma (UK Female • Conversational & Direct)", "gender": "female", "accent": "British (UK)", "speed": 1.0, "pitch": 1.0, "stability": 0.85, "similarity": 0.9}'::jsonb,
+		 'Qwen/Qwen2.5-7B-Instruct-AWQ', 'English (UK)', 'Thank you for calling Customer Care. My name is Elena. How may I assist you today?', 'You are Elena, a calm, patient, and knowledgeable customer service representative.',
 		 'empathetic', 0.80, 5, 10, '["kb-solar-faq", "kb-returns-policy"]'::jsonb,
 		 '[{"id": "tool-lookup", "name": "Account Record Lookup", "description": "Retrieves subscriber profile", "enabled": true, "type": "crm"}]'::jsonb,
 		 '{"enabled": true, "destinationNumber": "+1 (800) 555-0155", "triggerPhrase": "speak with billing supervisor", "department": "Billing & Claims"}'::jsonb,
@@ -264,10 +264,10 @@ func (h *AgentsHandler) CreateAgent(c *gin.Context) {
 		req.Language = "English (US)"
 	}
 	if req.LLMModel == "" {
-		req.LLMModel = "GPT-4o Mini (OpenAI)"
+		req.LLMModel = "Qwen/Qwen2.5-7B-Instruct-AWQ"
 	}
 	if len(req.Voice) == 0 {
-		req.Voice = json.RawMessage(`{"provider": "Kokoro Neural", "voiceName": "Rachel (US Professional)", "speed": 1.0, "stability": 0.8}`)
+		req.Voice = json.RawMessage(`{"provider": "Kokoro-82M", "voiceId": "af_bella", "voiceName": "Bella (US Female • Warm & Professional)", "speed": 1.0, "stability": 0.8}`)
 	}
 	if len(req.KnowledgeBaseIDs) == 0 {
 		req.KnowledgeBaseIDs = json.RawMessage(`[]`)
@@ -461,12 +461,20 @@ func (h *AgentsHandler) DeleteAgent(c *gin.Context) {
 	}
 
 	id := c.Param("id")
+
+
+	// Unassign phone numbers and website widgets pointing to this agent
+	_, _ = h.db.Exec(ctx, `UPDATE phone_numbers SET assigned_agent_id = NULL, assigned_agent_name = NULL WHERE assigned_agent_id = $1 AND tenant_id = $2`, id, tenantID)
+	_, _ = h.db.Exec(ctx, `UPDATE website_widgets SET assigned_agent_id = NULL WHERE assigned_agent_id = $1 AND tenant_id = $2`, id, tenantID)
+
+
 	query := `DELETE FROM agents WHERE id = $1 AND tenant_id = $2`
 	res, err := h.db.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete agent from database: " + err.Error()})
 		return
 	}
+
 
 	if res.RowsAffected() == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Agent not found or unauthorized"})

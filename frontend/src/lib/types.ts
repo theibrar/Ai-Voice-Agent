@@ -38,6 +38,7 @@ export interface HumanRealismConfig {
 export interface Agent {
   id: string;
   name: string;
+  role?: string;
   description: string;
   avatar: string;
   color: string;
@@ -100,9 +101,11 @@ export interface TranscriptMessage {
 export interface CallEvent {
   id: string;
   timestamp: string;
-  type: "call_started" | "speech_detected" | "tool_invoked" | "kb_queried" | "sentiment_shift" | "transferred" | "call_ended" | "supervisor_whisper" | "supervisor_takeover";
-  title: string;
-  description: string;
+  type: "call_started" | "speech_detected" | "tool_invoked" | "kb_queried" | "sentiment_shift" | "transferred" | "call_ended" | "supervisor_whisper" | "supervisor_takeover" | string;
+  title?: string;
+  name?: string;
+  description?: string;
+  status?: string;
   data?: Record<string, any>;
 }
 
@@ -112,6 +115,8 @@ export interface Call {
   status: CallStatus;
   callerName: string;
   callerNumber: string;
+  contactName?: string;
+  contactPhone?: string;
   agentId: string;
   agentName: string;
   agentAvatar: string;
@@ -120,6 +125,7 @@ export interface Call {
   startedAt: string;
   endedAt?: string;
   durationSeconds: number;
+  duration?: number;
   sentiment: CallSentiment;
   sentimentScore: number; // 0-100
   qualificationScore: number; // 0-100
