@@ -115,6 +115,9 @@ func main() {
 		api.POST("/contacts", contactsHandler.CreateOrUpdateContact)
 		api.GET("/knowledge", knowledgeHandler.ListKnowledgeSources)
 
+		// OpenAI-Compatible Model Discovery Endpoint
+		r.GET("/v1/models", superAdminHandler.GetActiveLLMModels)
+
 		// Real-Time WebSocket Endpoint
 		api.GET("/ws/calls", func(c *gin.Context) {
 			ws.ServeWS(wsHub, c)
