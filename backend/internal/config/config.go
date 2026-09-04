@@ -26,8 +26,27 @@ type Config struct {
 }
 
 func LoadConfig() (*Config, error) {
+	viper.AutomaticEnv()
 	viper.SetConfigFile(".env")
 	viper.SetConfigType("env")
+
+	// Explicitly bind environment variables so OS/Docker env vars override defaults
+	viper.BindEnv("PORT")
+	viper.BindEnv("ENV")
+	viper.BindEnv("DB_HOST")
+	viper.BindEnv("DB_PORT")
+	viper.BindEnv("DB_USER")
+	viper.BindEnv("DB_PASSWORD")
+	viper.BindEnv("DB_NAME")
+	viper.BindEnv("DB_SSLMODE")
+	viper.BindEnv("REDIS_HOST")
+	viper.BindEnv("REDIS_PORT")
+	viper.BindEnv("REDIS_PASSWORD")
+	viper.BindEnv("JWT_SECRET")
+	viper.BindEnv("JWT_EXPIRATION_HOURS")
+	viper.BindEnv("OPENAI_API_KEY")
+	viper.BindEnv("GEMINI_API_KEY")
+	viper.BindEnv("DEEPSEEK_API_KEY")
 
 	// Fallback environment variable values
 	viper.SetDefault("PORT", "8080")
@@ -46,8 +65,6 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("OPENAI_API_KEY", "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")
 	viper.SetDefault("GEMINI_API_KEY", "AQ.Ab8RN6JyfBrZTS8O8PnGvOTH59Aqm0F3V98uUcs9RDzbbCmlFQ")
 	viper.SetDefault("DEEPSEEK_API_KEY", "sk-6afcb9c9ea194924b7037362f7aaa30f")
-
-	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Printf("Warning: .env file not found, using default/environment variables: %v", err)
