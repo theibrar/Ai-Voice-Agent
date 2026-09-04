@@ -96,20 +96,23 @@ func (h *AuthHandler) ensureSchemaAndSeed() {
 		_, _ = h.db.Exec(ctx, idxQuery)
 	}
 
-	// 5. Seed default accounts with bcrypt hashes if empty
-	var count int
-	_ = h.db.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&count)
-	if count == 0 {
-		superAdminHash, _ := h.authService.HashPassword("MasterSuperAdminKey2026!")
-		adminHash, _ := h.authService.HashPassword("Admin@123")
+	// 5. Seed default tenant & accounts with bcrypt hashes unconditionally on startup
+	seedTenantQuery := `
+	INSERT INTO tenants (id, tenant_name, admin_name, admin_email, status, mrr, credits_balance)
+	VALUES (1, 'Apex Voice Enterprise', 'Sarah Jenkins', 'admin@apexvoice.ai', 'production', 1499.00, 500.00)
+	ON CONFLICT (id) DO NOTHING;`
+	_, _ = h.db.Exec(ctx, seedTenantQuery)
 
-		seedQuery := `
-		INSERT INTO users (id, name, email, password, role, tenant_id, avatar, phone, company, status, created_at, updated_at)
-		VALUES 
-		('usr-superadmin-1', 'Alexander Vance', 'alexander@apexsuperadmin.io', $1, 'super_admin', 0, '/avatars/alexander.png', '+1 (555) 019-9900', 'Apex Global Master Console', 'active', NOW(), NOW()),
-		('usr-admin-1', 'Sarah Jenkins', 'admin@apexvoice.ai', $2, 'admin', 1, '/avatars/sarah.png', '+1 (555) 234-5678', 'Apex Voice Enterprise', 'active', NOW(), NOW());`
-		_, _ = h.db.Exec(ctx, seedQuery, superAdminHash, adminHash)
-	}
+	superAdminHash, _ := h.authService.HashPassword("MasterSuperAdminKey2026!")
+	adminHash, _ := h.authService.HashPassword("Admin@123")
+
+	seedUsersQuery := `
+	INSERT INTO users (id, name, email, password, role, tenant_id, avatar, phone, company, status, created_at, updated_at)
+	VALUES 
+	('usr-superadmin-1', 'Alexander Vance', 'alexander@apexsuperadmin.io', $1, 'super_admin', 0, '/avatars/alexander.png', '+1 (555) 019-9900', 'Apex Global Master Console', 'active', NOW(), NOW()),
+	('usr-admin-1', 'Sarah Jenkins', 'admin@apexvoice.ai', $2, 'admin', 1, '/avatars/sarah.png', '+1 (555) 234-5678', 'Apex Voice Enterprise', 'active', NOW(), NOW())
+	ON CONFLICT (email) DO UPDATE SET password = EXCLUDED.password, status = 'active';`
+	_, _ = h.db.Exec(ctx, seedUsersQuery, superAdminHash, adminHash)
 }
 
 type LoginRequest struct {
