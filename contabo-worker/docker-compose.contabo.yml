@@ -12,24 +12,8 @@
 version: "3.9"
 
 services:
-
   # ─────────────────────────────────────────────────────────────────
-  # 1. Redis  (session state & LiveKit cluster state)
-  # ─────────────────────────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    container_name: livekit-redis
-    restart: unless-stopped
-    network_mode: host
-    command: >
-      redis-server
-      --maxmemory 512mb
-      --maxmemory-policy allkeys-lru
-      --save ""
-      --loglevel warning
-
-  # ─────────────────────────────────────────────────────────────────
-  # 2. LiveKit SFU Server
+  # 1. LiveKit SFU Server
   # ─────────────────────────────────────────────────────────────────
   livekit:
     image: livekit/livekit-server:latest
@@ -39,11 +23,9 @@ services:
     command: --config /etc/livekit.yaml
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
-    depends_on:
-      - redis
 
   # ─────────────────────────────────────────────────────────────────
-  # 3. LiveKit SIP Gateway  (Telnyx inbound/outbound telephony)
+  # 2. LiveKit SIP Gateway  (Telnyx inbound/outbound telephony)
   # ─────────────────────────────────────────────────────────────────
   livekit-sip:
     image: livekit/sip:latest
