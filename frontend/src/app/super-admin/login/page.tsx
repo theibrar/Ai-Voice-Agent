@@ -83,7 +83,7 @@ export default function SuperAdminLoginPage() {
         description: `Welcome Master Console, ${matchedAdmin.name}. Full platform authorization active.`,
         type: "success",
       });
-      router.push("/super-admin");
+      window.location.href = "/super-admin";
     } catch (err: any) {
       setIsLoading(false);
       const errMsg = "Unable to connect to authentication server. Please check backend.";

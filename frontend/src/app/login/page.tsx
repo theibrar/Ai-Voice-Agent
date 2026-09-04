@@ -109,9 +109,9 @@ function LoginFormContent() {
     });
 
     if (res.isSuperAdmin) {
-      router.push("/super-admin");
+      window.location.href = "/super-admin";
     } else {
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     }
   };
 
