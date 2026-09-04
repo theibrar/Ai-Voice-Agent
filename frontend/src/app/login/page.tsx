@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -29,8 +29,9 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { addToast } = useAppStore();
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
@@ -51,6 +52,37 @@ export default function LoginPage() {
   });
 
   const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const emailParam = searchParams.get("email");
+    const passParam = searchParams.get("password");
+    if (emailParam) {
+      setValue("email", emailParam);
+    }
+    if (passParam) {
+      setValue("password", passParam);
+    }
+    if (emailParam && passParam) {
+      setIsLoading(true);
+      login(emailParam, passParam).then((res) => {
+        setIsLoading(false);
+        if (res.success) {
+          addToast({
+            title: "Welcome Back!",
+            description: "Signed in successfully. Opening dashboard...",
+            type: "success",
+          });
+          if (res.isSuperAdmin) {
+            router.push("/super-admin");
+          } else {
+            router.push("/dashboard");
+          }
+        } else {
+          setAuthError(res.error || "Invalid email or password. Please check your credentials.");
+        }
+      });
+    }
+  }, [searchParams, setValue, login, router, addToast]);
 
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
@@ -286,5 +318,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#F4F7FB] text-sm text-[#78849A]">Loading login portal...</div>}>
+      <LoginFormContent />
+    </Suspense>
   );
 }
