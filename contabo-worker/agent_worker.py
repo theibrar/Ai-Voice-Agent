@@ -33,7 +33,7 @@ import aiohttp
 from typing import Optional, AsyncGenerator, Dict, Any, List
 from loguru import logger
 from livekit import rtc
-from livekit.agents import JobContext, WorkerOptions, cli, AutoSubscribe
+from livekit.agents import JobContext, WorkerOptions, cli, AutoSubscribe, WorkerType
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIG  (all overridable via env vars in docker-compose.contabo.yml)
@@ -838,7 +838,7 @@ def main():
             ws_url=target_livekit_url,
             api_key=LIVEKIT_API_KEY,
             api_secret=LIVEKIT_API_SECRET,
-            worker_type="room",
+            worker_type=WorkerType.ROOM,
             max_retry=20,
         )
     )
