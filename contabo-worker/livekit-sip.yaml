@@ -12,6 +12,9 @@ sip_port: 5060
 rtp_port_range_start: 20000
 rtp_port_range_end: 29999
 
+redis:
+  address: "127.0.0.1:6379"
+
 logging:
   level: info
 
